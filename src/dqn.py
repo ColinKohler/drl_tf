@@ -36,7 +36,7 @@ class DQN(object):
             self.batch_label = tf.placeholder_with_default(batch_label_q, [None], 'label')
 
             # Convert images from uint8 to float32
-            if network_config['is_state_img']:
+            if network_config['is_input_img']:
                 with tf.device('/gpu:0'):
                     self.batch_input = tf.div(batch_input, 255.0)
 
@@ -75,10 +75,10 @@ class DQN(object):
     def createLayer(self, prev_layer, config):
         if config['type'] == 'conv':
             return self.convLayer(prev_layer, config['filter'], config['stride'], config['name'])
-        elif config['type'] == 'fc' and config['use_relu']:
+        elif config['type'] == 'fc' and not config['last_layer']:
             return self.fcLayer(prev_layer, config['num_neurons'], config['name'])
-        elif config['type'] == 'fc':
-            return self.fcLayer(prev_layer, config['num_neurons'], config['name'], act=tf.identity)
+        elif config['type'] == 'fc' and config['last_layer']:
+            return self.fcLayer(prev_layer, out_shape, config['name'], act=tf.identity)
         elif config['type'] == 'pool':
             return self.maxPoolLayer(self, prev_layer, config['filter'], config['stride'], config['name'])
 

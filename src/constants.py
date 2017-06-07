@@ -9,4 +9,16 @@ NUM_PROC_THREADS = 1
 NEW_GAME_MAX_RANDOM_STEPS = 30
 
 # Network layer configs
-MLP = {}
+MLP = {'is_input_img' : False,
+       'layers' : [
+           {'name' : 'fc_1',
+            'type' : 'fc',
+            'num_neurons' : 64,
+            'last_layer' : False},
+           {'name' : 'fc_2',
+            'type' : 'fc',
+            'num_neurons' : 64,
+            'last_layer' : False},
+           {'name' : 'output',
+            'type' : 'fc',
+            'last_layer' : True}]}
