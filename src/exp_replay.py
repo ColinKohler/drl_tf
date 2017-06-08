@@ -24,14 +24,17 @@ class ExpReplay(object):
         self.terminals[self.index] = terminal
 
         self.index = (self.index + 1) % self.capacity
-        self.size = max(self.size+1, self.capacity)
+        self.size = min(self.size+1, self.capacity)
 
     # Get batch from memory
     def getBatch(self):
         indexes = self._getBatchIndexes()
         for i, index in enumerate(indexes):
+            print index
             self.batch_states[i, ...] = self._getState(index - 1)
             self.batch_states_[i, ...] = self._getState(index)
+            print self.batch_states[i, ...]
+            print self.batch_states_[i, ...]
 
         actions = self.actions[indexes]
         rewards = self.rewards[indexes]
@@ -41,7 +44,7 @@ class ExpReplay(object):
 
     # Get the experience state for a given index
     def _getState(self, index):
-        return self.states[index-self.exp_length-1:index-1, ...]
+        return self.states[index-self.exp_length:index, ...]
 
     # Get valid indexes for a batch sample
     def _getBatchIndexes(self):
@@ -55,6 +58,7 @@ class ExpReplay(object):
 
     # Checks that a given index is valid
     def _isValidIndex(self, index):
-        return (index < self.index) and \
-               (index - self.exp_length >= self.index) and \
-               (not self.terminals[(index - self.exp_length):index].any())
+        wrap_pointer = (index >= self.index and index - self.exp_length < self.index)
+        bad_terminal = (self.terminals[(index - self.exp_length):index].any())
+
+        return not wrap_pointer and not bad_terminal
