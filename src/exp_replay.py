@@ -30,11 +30,8 @@ class ExpReplay(object):
     def getBatch(self):
         indexes = self._getBatchIndexes()
         for i, index in enumerate(indexes):
-            print index
             self.batch_states[i, ...] = self._getState(index - 1)
             self.batch_states_[i, ...] = self._getState(index)
-            print self.batch_states[i, ...]
-            print self.batch_states_[i, ...]
 
         actions = self.actions[indexes]
         rewards = self.rewards[indexes]
@@ -50,7 +47,7 @@ class ExpReplay(object):
     def _getBatchIndexes(self):
         indexes = list()
         while len(indexes) < self.batch_size:
-            index = random.randint(self.exp_length, self.size-1)
+            index = random.randint(self.exp_length+1, self.size-1)
             if self._isValidIndex(index):
                 indexes.append(index)
 
