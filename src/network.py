@@ -2,16 +2,17 @@ import tensorflow as tf
 import numpy as np
 import constants
 
-class DQN(object):
+class Network(object):
     def __init__(self, name, in_shape, out_shape, network_config, lr, batch_size, queue_size):
+        self.name = name
         self.lr = lr
         self.batch_size = batch_size
         self.queue_size = queue_size
 
-        self.createNetwork(in_shape, out_shape, network_config)
+        self._createNetwork(in_shape, out_shape, network_config)
 
     # Create network detailed in config dict
-    def createNetwork(self, in_shape, out_shape, network_config)
+    def _createNetwork(self, in_shape, out_shape, network_config)
         with tf.name_scope(self.name):
             # FIFO Queue for training input
             self.queue_input = tf.placeholder(tf.float32, [None] + in_shape, 'queue_input')
@@ -63,10 +64,10 @@ class DQN(object):
                 clipped_err = tf.where(tf.abs(err) < 1.0,
                                        0.5 * tf.square(err),
                                        tf.abs(err) - 0.5)
-                loss = tf.reduce_mean(clipped_error)
+                self.loss = tf.reduce_mean(clipped_error)
 
             with tf.name_scope('train'):
-                self.train_op = tf.train.AdamOptimizer(lr).minimize(loss)
+                self.train_op = tf.train.AdamOptimizer(lr).minimize(self.loss)
 
             with tf.name_scope('predict'):
                 self.predict_op = tf.argmax(self.q_values, 1)
