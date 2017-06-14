@@ -50,7 +50,7 @@ class Statistics(object):
             "total_train_steps",
             "replay_memory_count",
             "mean_q",
-            "mean_cost",
+            "mean_loss",
             "weight_updates",
             "total_time",
             "epoch_time",
@@ -85,7 +85,7 @@ class Statistics(object):
         self.min_reward = 0
         self.max_reward = -sys.maxint - 1
         self.eps = 1
-        self.avg_cost = 0
+        self.avg_loss = 0
 
     # Callback for env
     def onStep(self, action, reward, done, frame, eps):
@@ -101,8 +101,8 @@ class Statistics(object):
             self.eps_reward = 0
 
     # Callback for agent
-    def onTrain(self, cost):
-        self.avg_cost += (cost - self.avg_cost) / self.agent.train_iterations
+    def onTrain(self, loss):
+        self.avg_loss += (loss - self.avg_loss) / self.agent.train_iterations
 
     # Log statistics during run
     def log(self, epoch_time):
@@ -144,7 +144,7 @@ class Statistics(object):
             self.agent.total_train_steps,
             self.agent.exp_replay.size,
             mean_q,
-            self.avg_cost,
+            self.avg_loss,
             self.agent.train_iterations,
             total_time,
             epoch_time,

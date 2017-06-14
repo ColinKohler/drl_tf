@@ -9,7 +9,8 @@ class Environment(object):
         self.gym_env = gym.make(env_name)
         self.render = render
 
-        self.state_shape = self.gym_env.observation_space.shape
+        self.state_shape = list(self.gym_env.observation_space.shape)
+        self.num_actions = self.gym_env.action_space.n
         self.is_state_image = env_name in constants.ENVS_WITH_IMAGE_STATES
         self.state = np.zeros(self.state_shape, dtype=np.float32)
         self.state_ = np.zeros(self.state_shape, dtype=np.float32)

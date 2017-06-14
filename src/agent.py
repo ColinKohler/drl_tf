@@ -2,55 +2,55 @@ import tensorflow as tf
 import numpy as np
 import threading
 
+from exp_replay import ExpReplay
 from network import Network
 import constants
 
 class Agent(object):
-    def __init__(self, ):
-        self.num_actions = num_actions
-        self.state_shape = list(state_shape)
+    def __init__(self, env, net_config, lr, gamma, s_eps, e_eps, eps_decay_steps, test_eps,
+                       batch_size, saved_model=None, use_tensorboard=True):
+        self.env = env
         self.net_config = net_config
         self.lr = lr
+        self.train_eps = s_eps
+        self.end_train_eps = e_eps
+        self.decay_eps = (s_eps - e_eps) / float(eps_decay_steps)
+        self.test_eps = test_eps
         self.gamma = gamma
         self.batch_size = batch_size
         self.queue_size = self.batch_size * 4
         self.use_tensorboard = use_tensorboard
+        self.exp_replay = ExpReplay(self.env.state_shape, batch_size, env.exp_length, capacity=5000)
 
         self.train_iterations = 0
         self.callback = None
         self.coord = tf.train.Coordinator()
-        self.replay_loc = threading.Lock()
+        self.replay_lock = threading.Lock()
 
+        self._initModel(lr)
         if saved_model is not None:
-            self.sess = self._loadModel(saved_model)
-        else:
-            self.sess = self._initModel(lr)
+            self.saver.restore(self.sess, saved_model)
 
     # Init tensorflow network model
     def _initModel(self, lr):
-        self.q_model = Network('q_network', self.state_shape, self.num_actions,
-                               constants.MLP, lr, self.batch_size, self.queue_size)
-        self.t_model = Network('t_network', self.state_shape, self.num_actions,
-                               constants.MLP, lr, self.batch_size, self.queue_size)
+        self.q_model = Network('q_network', self.env.state_shape, self.env.num_actions,
+                               constants.MLP, lr, self.batch_size, self.queue_size, log=True)
+        self.t_model = Network('t_network', self.env.state_shape, self.env.num_actions,
+                               constants.MLP, lr, self.batch_size, self.queue_size, log=False)
         self.update_ops = self._setupTargetUpdates()
 
-        sess = tf.Session()
+        self.sess = tf.Session()
         self.merged = tf.summary.merge_all()
-        self.train_writer = tf.summary.FileWriter(constants.TF_LOG_PATH + '/train', sess.graph)
+        self.writer = tf.summary.FileWriter(constants.TF_LOG_PATH + '/train', self.sess.graph)
         self.saver = tf.train.Saver()
         self.sess.run(tf.global_variables_initializer())
 
         print 'Initialized new model...'
-        return sess
 
     # Save the network model
     def _saveModel(self, loc):
         save_path = self.saver.save(self.sess, loc)
         print 'Model saved in file: %s' % save_path
-
-    # Load a pre-trained network
-    def _loadModel(self, ):
-        pass
 
     # Create ops to copy weights from online net to target net
     def _setupTargetUpdates(self):
@@ -60,34 +60,114 @@ class Agent(object):
 
         return update_ops
 
-    # Run teh online->target update ops
+    # Run the online->target update ops
     def _updateTargetModel(self):
         [self.sess.run(op) for op in self.update_ops]
 
-    # Train the agent for the desired number of steps
-    def trainAgent(self, ):
-        pass
+    # Run the agent for the desired number of steps either training or testing
+    def run(self, num_steps, train=False):
+        step = 0; episode_num = 0
+        eps = self.train_eps if train else self.test_eps
+        while step < num_steps:
+            reward_sum = 0.0; done = False
+            self.env.newRandomGame()
 
-    # Test the agent
-    def testAgent(self, ):
-        pass
+            while not done:
+                # Take action greedly with eps proability
+                if np.random.rand(1) < eps:
+                    action = np.random.randint(self.env.num_actions)
+                else:
+                    action = self._selectAction(self.env.state)
+                self.env.takeAction(action)
+                self._storeExperience(action)
+
+                # Train and update networks as neccessary
+                if train and self.total_train_steps % self.train_freq == 0:
+                    self._trainNetwork()
+                if train and self.total_train_steps % self.update_target_freq == 0:
+                    self._updateTargetModel()
+
+                # Handle various vairable updates
+                if train: self._decayEps()
+                reward_sum += self.env.reward
+                step += 1
+
+                # Handle episode termination
+                if done or step >= num_steps:
+                    episode_num += 1
+                    break
+
+    # Decay the random action chance
+    def _decayEps(self):
+        if self.train_eps > self.train_end_eps:
+            self.train_eps -= self.decay_eps
+        if self.train_eps < self.train_end_eps:
+            self.train_eps = self.train_end_eps
 
     # Choose action greedly from network
-    def _selectAction(self, ):
-        pass
+    def _selectAction(self, state):
+        state = state.reshape([1] + self.env.state_shape)
+        return self.sess.run(self.q_model.predict_op, feed_dict={self.q_model.batch_input : state})[0]
+
+    # Store the transition into memory
+    def _storeExperience(self, action):
+        with self.replay_lock:
+            self.exp_replay.storeExperience(self.env.state, action, self.env.reward, self.env.done)
 
     # Get Q values based off predicted max future reward
-    def _getTargetQValues(self, ):
-        pass
+    def _getTargetQValues(self, states, actions, rewards, states_, done_flags):
+        q_values = self.sess.run(self.q_model.q_values, feed_dict={self.q_model.batch_input: states})
+        future_actions = self.sess.run(self.q_model.predict_op, feed_dict={self.q_model.batch_input: states_})
+        target_q_values_with_idx = self.sess.run(self.t_model.q_values_with_idxs,
+                feed_dict={self.t_model.batch_input: states_,
+                           self.t_model.q_value_idxs:[[idx, future_a] for idx, future_a in enumerate(future_actions)]})
+        pred_q_values = (1.0 - done_flags) * self.gamma * target_q_values_with_idxs + rewards
+        errors = np.abs(q_values[:, actions] - pred_q_values)
+        return errors, pred_q_values
 
     # Run the train ops
-    def _trainNetwork(self, ):
-        pass
+    def _trainNetwork(self):
+        # Wait until the queue has been filled up with experiences
+        while self.sess.run(self.q_model.queue_size_op) < self.batch_size: continue
+        s, _ = self.sess.run([self.merged, self.q_model.train_op])
+
+        if (self.train_iterations == 0) or (self.train_iterations % 1000) == 0:
+             self.writer.add_summary(s, self.train_iterations)
+
+        self.train_iterations += 1
+        if self.callback:
+            self.callback.onTrain(self.q_model.loss)
 
     # Start threads to load training data into the network queue
     def startEnqueueThreads(self):
-        pass
+        threads = list()
+        for i in range(constants.NUM_QUEUE_THREADS):
+            t = threading.Thread(target=self._enqueueThread)
+            t.setDaemon(True)
+            t.start()
+
+            threads.append(t)
+            self.coord.register_thread(t)
+            time.sleep(0.1)
 
     # Enqueue training data inot the network queue
     def _enqueueThread(self):
-        pass
+        while not self.coord.should_stop():
+            # Make sure we only keep recent experiences in the batch
+            if self.exp_replay.size < self.batch_size or \
+                    self.sess.run(self.q_model.queue_size_op) == self.queue_size:
+                continue
+
+            with self.replay_lock:
+                states, actions, rewards, states_, done_flags = self.exp_replay.getBatch()
+            errors, pred_q_values = self._getTargetQValues(states, actions, rewards, states_, done_flags)
+
+            feed_dict = {
+                    self.q_model.queue_input : states,
+                    self.q_model.queue_action : actions,
+                    self.q_model.queue_label : pred_q_values
+            }
+            try:
+                self.sess.run(self.q_model.enqueue_op, feed_dict=feed_dict)
+            except tf.errors.CancelledError:
+                return

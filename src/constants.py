@@ -6,7 +6,7 @@ PLOTS_PATH = '/home/colin/workspace/rl_experiments/dqn/plots'
 
 # Various important settings
 ENVS_WITH_IMAGE_STATES = []
-NUM_PROC_THREADS = 1
+NUM_QUEUE_THREADS = 1
 NEW_GAME_MAX_RANDOM_STEPS = 30
 
 # Network layer configs
