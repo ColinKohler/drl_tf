@@ -2,21 +2,18 @@ import tensorflow as tf
 import numpy as np
 import threading
 
+from agent import Agent
 from exp_replay import ExpReplay
 from network import Network
 import constants
 
-class Agent(object):
-    def __init__(self, env, net_config, lr, gamma, s_eps, e_eps, eps_decay_steps, test_eps,
+class DDQN_Agent(Agent):
+    def __init__(self, env, net_config, lr, discount, s_eps, e_eps, eps_decay_steps, test_eps,
                        batch_size, saved_model=None, use_tensorboard=True):
-        self.env = env
+        super(DDQN_Agent, self).__init__(env, discount, s_eps, e_eps, eps_decay_steps, test_eps)
+
         self.net_config = net_config
         self.lr = lr
-        self.train_eps = s_eps
-        self.end_train_eps = e_eps
-        self.decay_eps = (s_eps - e_eps) / float(eps_decay_steps)
-        self.test_eps = test_eps
-        self.gamma = gamma
         self.batch_size = batch_size
         self.queue_size = self.batch_size * 4
         self.use_tensorboard = use_tensorboard
@@ -97,13 +94,6 @@ class Agent(object):
                     episode_num += 1
                     break
 
-    # Decay the random action chance
-    def _decayEps(self):
-        if self.train_eps > self.train_end_eps:
-            self.train_eps -= self.decay_eps
-        if self.train_eps < self.train_end_eps:
-            self.train_eps = self.train_end_eps
-
     # Choose action greedly from network
     def _selectAction(self, state):
         state = state.reshape([1] + self.env.state_shape)
@@ -121,7 +111,7 @@ class Agent(object):
         target_q_values_with_idx = self.sess.run(self.t_model.q_values_with_idxs,
                 feed_dict={self.t_model.batch_input: states_,
                            self.t_model.q_value_idxs:[[idx, future_a] for idx, future_a in enumerate(future_actions)]})
-        pred_q_values = (1.0 - done_flags) * self.gamma * target_q_values_with_idxs + rewards
+        pred_q_values = (1.0 - done_flags) * self.discount * target_q_values_with_idxs + rewards
         errors = np.abs(q_values[:, actions] - pred_q_values)
         return errors, pred_q_values
 
