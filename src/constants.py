@@ -1,8 +1,8 @@
 # Important Filepaths
-TF_LOG_PATH = '/home/colin/tf_logs/'
-TF_MODELS_PATH = '/home/colin/workspace/machine_learning_toolbox/saved_models/dqn/'
-STATS_PATH = '/home/colin/workspace/rl_experiments/dqn/stats'
-PLOTS_PATH = '/home/colin/workspace/rl_experiments/dqn/plots'
+TF_LOG_PATH = '/home/colin/workspace/machine_learning_experiments/tf_logs/'
+TF_MODELS_PATH = '/home/colin/workspace/machine_learning_experiments/dqn/models/'
+STATS_PATH = '/home/colin/workspace/machine_learning_experiments/dqn/stats/'
+PLOTS_PATH = '/home/colin/workspace/machine_learning_experiments/dqn/plots/'
 
 # Various important settings
 ENVS_WITH_IMAGE_STATES = []

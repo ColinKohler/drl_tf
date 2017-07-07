@@ -8,19 +8,17 @@ from network import Network
 import constants
 
 class DDQN_Agent(Agent):
-    def __init__(self, env, net_config, lr, discount, s_eps, e_eps, eps_decay_steps, test_eps,
+    def __init__(self, env, lr, discount, s_eps, e_eps, eps_decay_steps, test_eps, net_config,
                        batch_size, saved_model=None, use_tensorboard=True):
-        super(DDQN_Agent, self).__init__(env, discount, s_eps, e_eps, eps_decay_steps, test_eps)
+        super(DDQN_Agent, self).__init__(env, lr, discount, s_eps, e_eps, eps_decay_steps, test_eps)
 
         self.net_config = net_config
-        self.lr = lr
         self.batch_size = batch_size
         self.queue_size = self.batch_size * 4
         self.use_tensorboard = use_tensorboard
         self.exp_replay = ExpReplay(self.env.state_shape, batch_size, env.exp_length, capacity=5000)
 
         self.train_iterations = 0
-        self.callback = None
         self.coord = tf.train.Coordinator()
         self.replay_lock = threading.Lock()
 
@@ -102,7 +100,7 @@ class DDQN_Agent(Agent):
     # Store the transition into memory
     def _storeExperience(self, action):
         with self.replay_lock:
-            self.exp_replay.storeExperience(self.env.state, action, self.env.reward, self.env.done)
+            elf.exp_replay.storeExperience(self.env.state, action, self.env.reward, self.env.done)
 
     # Get Q values based off predicted max future reward
     def _getTargetQValues(self, states, actions, rewards, states_, done_flags):

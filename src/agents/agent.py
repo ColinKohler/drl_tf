@@ -1,13 +1,16 @@
 
 class Agent(object):
-    def __init__(self, env, discount, s_eps, e_eps, eps_decay_steps, test_eps):
+    def __init__(self, env, lr,  discount, s_eps, e_eps, eps_decay_steps, test_eps):
         self.env = env
+        self.lr = lr
         self.discount = discount
 
         self.test_eps = test_eps
         self.train_eps = s_eps
-        self.end_train_eps = e_eps
+        self.train_end_eps = e_eps
         self.decay_eps = (s_eps - e_eps) / float(eps_decay_steps)
+
+        self.callback = None
 
     # Decay the random action chance
     def _decayEps(self):

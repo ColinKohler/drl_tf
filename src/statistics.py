@@ -20,15 +20,15 @@ class Statistics(object):
 
         # Create data collection repo
         csv_dir = constants.STATS_PATH + '{}/'.format(env_name)
-        plot_dir = constants.PLOTS_PATH + '{}/'.format(env_name)
+        plots_dir = constants.PLOTS_PATH + '{}/'.format(env_name)
 
         if not os.path.isdir(csv_dir):
             os.makedirs(csv_dir)
-        if not os.path.isdir(plot_dir):
+        if not os.path.isdir(plots_dir):
             os.makedirs(plots_dir)
 
-        self._initCSV()
-        self._initPlot()
+        self._initCSV(csv_dir, job_name)
+        self._initPlot(plots_dir, job_name)
 
         self.start_time = time.time()
         self.validation_states = None
@@ -59,10 +59,10 @@ class Statistics(object):
 
     # Setup plot
     def _initPlot(self, plot_dir, job_name):
-        self.plot_name = plot_dir + job_name + '.csv'
+        self.plot_name = plot_dir + job_name + '.jpg'
 
         plt.ion()
-        self.epoch_fig = plt.figure(figsizel=(10, 7.5))
+        self.epoch_fig = plt.figure(figsize=(10, 7.5))
         self.epoch_ax = self.epoch_fig.add_subplot(111)
         box = self.epoch_ax.get_position()
         self.epoch_ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
@@ -88,7 +88,7 @@ class Statistics(object):
         self.avg_loss = 0
 
     # Callback for env
-    def onStep(self, action, reward, done, frame, eps):
+    def onStep(self, action, reward, done, eps):
         self.eps_reward += reward
         self.num_steps += 1
         self.eps = eps
@@ -105,9 +105,9 @@ class Statistics(object):
         self.avg_loss += (loss - self.avg_loss) / self.agent.train_iterations
 
     # Log statistics during run
-    def log(self, epoch_time):
-        print '%f Num Episodes: %d | Avg Rewards: %f | Min Reward %d | Max Reward %d' % \
-                (epoch_time, self.num_eps, self.avg_rewards, self.min_reward, self.max_rewards)
+    def log(self):
+        print 'Num Episodes: %d | Epsilon: %f | Avg Rewards: %f | Min Reward %d | Max Reward %d' % \
+                (self.num_eps, self.eps, self.avg_reward, self.min_reward, self.max_reward)
 
     # Write data to csv
     def write(self, epoch, phase):
@@ -120,19 +120,19 @@ class Statistics(object):
             self.num_eps = 1
             self.avg_reward = self.eps_reward
 
-        if self.validation_states is None and self.agent.exp_replay.size > self.agent.minibatch_size:
-            self.validation_states, _ = self.agent.exp_replay.getBatch()
+        #if self.validation_states is None and self.agent.exp_replay.size > self.agent.minibatch_size:
+        #    self.validation_states, _ = self.agent.exp_replay.getBatch()
 
-        if self.validation_states is not None:
-            state_shape = [-1] + self.agent.state_shape
-            qs = self.agent.sess.run(self.agent.q_model.qs,
-                    feed_dict={self.agent.q_model.inp : np.array(self.validation_states).reshape(state_shape)})
-            max_qs = np.max(qs, axis=1)
-            mean_q = np.mean(max_qs)
-        else:
-            mean_q = 0
+        #if self.validation_states is not None:
+        #    state_shape = [-1] + self.agent.state_shape
+        #    qs = self.agent.sess.run(self.agent.q_model.qs,
+        #            feed_dict={self.agent.q_model.inp : np.array(self.validation_states).reshape(state_shape)})
+        #    max_qs = np.max(qs, axis=1)
+        #    mean_q = np.mean(max_qs)
+        #else:
+        mean_q = 0
 
-        self.csv_write.writerow((
+        self.csv_writer.writerow((
             epoch,
             phase,
             self.num_steps,
@@ -141,11 +141,14 @@ class Statistics(object):
             self.min_reward,
             self.max_reward,
             self.eps,
-            self.agent.total_train_steps,
-            self.agent.exp_replay.size,
+            #self.agent.total_train_steps,
+            0,
+            #self.agent.exp_replay.size,
+            0,
             mean_q,
             self.avg_loss,
-            self.agent.train_iterations,
+            #self.agent.train_iterations,
+            0,
             total_time,
             epoch_time,
             steps_per_second))
@@ -157,13 +160,13 @@ class Statistics(object):
             self.test_epoch_rewards.append(self.avg_reward)
 
         self.plot()
-        self.log(epoch_time)
+        self.log()
 
     # Update plot with current data
     def plot(self):
         # Check axis limits and adjust if needed
-        min_reward = min(min(self.train_epoch_rewards), min(self.test_epoch rewards))
-        max_reward = max(max(self.train_epoch_rewards), max(self.test_epoch rewards))
+        min_reward = min(min(self.train_epoch_rewards), min(self.test_epoch_rewards))
+        max_reward = max(max(self.train_epoch_rewards), max(self.test_epoch_rewards))
 
         if min_reward < self.y_min:
             self.y_min = min_reward - (min_reward / 10.0)
@@ -176,8 +179,8 @@ class Statistics(object):
         x2 = np.arange(0, len(self.test_epoch_rewards))
         self.train_line.set_xdata(x1)
         self.train_line.set_ydata(self.train_epoch_rewards)
-        self.train_line.set_xdata(x2)
-        self.train_line.set_ydata(self.test_epoch_rewards)
+        self.test_line.set_xdata(x2)
+        self.test_line.set_ydata(self.test_epoch_rewards)
         self.legend.draggable(True)
 
         self.epoch_fig.canvas.draw()
