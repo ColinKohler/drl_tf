@@ -13,8 +13,12 @@ class ExpReplay(object):
         self.index = 0
         self.size = 0
 
-        self.batch_states = np.empty([self.batch_size, self.exp_length]+state_shape, dtype=np.float16)
-        self.batch_states_ = np.empty([self.batch_size, self.exp_length]+state_shape, dtype=np.float16)
+        if self.exp_length != 1:
+            self.batch_states = np.empty([self.batch_size, self.exp_length]+state_shape, dtype=np.float16)
+            self.batch_states_ = np.empty([self.batch_size, self.exp_length]+state_shape, dtype=np.float16)
+        else:
+            self.batch_states = np.empty([self.batch_size]+state_shape, dtype=np.float16)
+            self.batch_states_ = np.empty([self.batch_size]+state_shape, dtype=np.float16)
 
     # Store experience in memory
     def storeExperience(self, state, action, reward, terminal):
@@ -48,14 +52,15 @@ class ExpReplay(object):
         indexes = list()
         while len(indexes) < self.batch_size:
             index = random.randint(self.exp_length+1, self.size-1)
-            if self._isValidIndex(index):
+            if self._isValidIndex(index, indexes):
                 indexes.append(index)
 
         return indexes
 
     # Checks that a given index is valid
-    def _isValidIndex(self, index):
+    def _isValidIndex(self, index, indexes):
+        duplicate = index in indexes
         wrap_pointer = (index >= self.index and index - self.exp_length < self.index)
         bad_terminal = (self.terminals[(index - self.exp_length):index].any())
 
-        return not wrap_pointer and not bad_terminal
+        return not duplicate and not wrap_pointer and not bad_terminal

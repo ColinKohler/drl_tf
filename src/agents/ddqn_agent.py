@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import threading
+import time
 
 from agent import Agent
 from exp_replay import ExpReplay
@@ -9,14 +10,16 @@ import constants
 
 class DDQN_Agent(Agent):
     def __init__(self, env, lr, discount, s_eps, e_eps, eps_decay_steps, test_eps, net_config,
-                       batch_size, saved_model=None, use_tensorboard=True):
+                       train_freq, update_target_freq, batch_size, exp_replay_size, saved_model=None, use_tensorboard=True):
         super(DDQN_Agent, self).__init__(env, lr, discount, s_eps, e_eps, eps_decay_steps, test_eps)
 
         self.net_config = net_config
         self.batch_size = batch_size
         self.queue_size = self.batch_size * 4
         self.use_tensorboard = use_tensorboard
-        self.exp_replay = ExpReplay(self.env.state_shape, batch_size, env.exp_length, capacity=5000)
+        self.exp_replay = ExpReplay(self.env.state_shape, batch_size, env.exp_length, capacity=exp_replay_size)
+        self.train_freq = train_freq
+        self.update_target_freq = update_target_freq
 
         self.train_iterations = 0
         self.coord = tf.train.Coordinator()
@@ -29,9 +32,9 @@ class DDQN_Agent(Agent):
     # Init tensorflow network model
     def _initModel(self, lr):
         self.q_model = Network('q_network', self.env.state_shape, self.env.num_actions,
-                               constants.MLP, lr, self.batch_size, self.queue_size, log=True)
+                               self.net_config, lr, self.batch_size, self.queue_size, log=True)
         self.t_model = Network('t_network', self.env.state_shape, self.env.num_actions,
-                               constants.MLP, lr, self.batch_size, self.queue_size, log=False)
+                               self.net_config, lr, self.batch_size, self.queue_size, log=False)
         self.update_ops = self._setupTargetUpdates()
 
         self.sess = tf.Session()
@@ -59,15 +62,30 @@ class DDQN_Agent(Agent):
     def _updateTargetModel(self):
         [self.sess.run(op) for op in self.update_ops]
 
+    # Randomly take the given number of steps and store experiences
+    def randomExplore(self, num_steps):
+        step = 0;
+        self.env.newGame()
+        while step < num_steps:
+            action = np.random.randint(self.env.num_actions)
+            self.env.takeAction(action)
+            self._storeExperience(action)
+
+            step += 1
+            if self.env.done or step >= num_steps:
+                self.env.newGame()
+
     # Run the agent for the desired number of steps either training or testing
-    def run(self, num_steps, train=False):
+    def run(self, num_steps, train=False, render=False):
         step = 0; episode_num = 0
         eps = self.train_eps if train else self.test_eps
         while step < num_steps:
-            reward_sum = 0.0; done = False
-            self.env.newRandomGame()
+            reward_sum = 0.0;
+            self.env.newGame()
 
-            while not done:
+            while not self.env.done:
+                if render: self.end.render()
+
                 # Take action greedly with eps proability
                 if np.random.rand(1) < eps:
                     action = np.random.randint(self.env.num_actions)
@@ -75,20 +93,21 @@ class DDQN_Agent(Agent):
                     action = self._selectAction(self.env.state)
                 self.env.takeAction(action)
                 self._storeExperience(action)
+                self.callback.onStep(action, self.env.reward, self.env.done, eps)
 
                 # Train and update networks as neccessary
-                if train and self.total_train_steps % self.train_freq == 0:
+                if train and step % self.train_freq == 0:
                     self._trainNetwork()
-                if train and self.total_train_steps % self.update_target_freq == 0:
+                if train and step % self.update_target_freq == 0:
                     self._updateTargetModel()
 
                 # Handle various vairable updates
                 if train: self._decayEps()
                 reward_sum += self.env.reward
-                step += 1
+                step += 1;
 
                 # Handle episode termination
-                if done or step >= num_steps:
+                if self.env.done or step >= num_steps:
                     episode_num += 1
                     break
 
@@ -100,13 +119,13 @@ class DDQN_Agent(Agent):
     # Store the transition into memory
     def _storeExperience(self, action):
         with self.replay_lock:
-            elf.exp_replay.storeExperience(self.env.state, action, self.env.reward, self.env.done)
+            self.exp_replay.storeExperience(self.env.state, action, self.env.reward, self.env.done)
 
     # Get Q values based off predicted max future reward
     def _getTargetQValues(self, states, actions, rewards, states_, done_flags):
         q_values = self.sess.run(self.q_model.q_values, feed_dict={self.q_model.batch_input: states})
         future_actions = self.sess.run(self.q_model.predict_op, feed_dict={self.q_model.batch_input: states_})
-        target_q_values_with_idx = self.sess.run(self.t_model.q_values_with_idxs,
+        target_q_values_with_idxs = self.sess.run(self.t_model.q_values_with_idxs,
                 feed_dict={self.t_model.batch_input: states_,
                            self.t_model.q_value_idxs:[[idx, future_a] for idx, future_a in enumerate(future_actions)]})
         pred_q_values = (1.0 - done_flags) * self.discount * target_q_values_with_idxs + rewards
@@ -119,8 +138,8 @@ class DDQN_Agent(Agent):
         while self.sess.run(self.q_model.queue_size_op) < self.batch_size: continue
         s, _ = self.sess.run([self.merged, self.q_model.train_op])
 
-        if (self.train_iterations == 0) or (self.train_iterations % 1000) == 0:
-             self.writer.add_summary(s, self.train_iterations)
+        if self.use_tensorboard and (self.train_iterations == 0 or (self.train_iterations % 100) == 0):
+            self.writer.add_summary(s, self.train_iterations)
 
         self.train_iterations += 1
         if self.callback:

@@ -82,7 +82,7 @@ class Statistics(object):
         self.num_eps = 0
         self.eps_reward = 0
         self.avg_reward = 0
-        self.min_reward = 0
+        self.min_reward = sys.maxint
         self.max_reward = -sys.maxint - 1
         self.eps = 1
         self.avg_loss = 0

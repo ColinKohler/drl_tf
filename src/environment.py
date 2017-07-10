@@ -24,7 +24,8 @@ class Environment(object):
             self._discretizeContinuousSpace()
         else:
             self.isEnvStateDiscrete = True
-            self.state_shape = self.gym_env.observation_space.n
+            #self.state_shape = self.gym_env.observation_space.n
+            self.state_shape = [1]
             self.state = np.zeros(1, dtype=np.uint8)
 
     def render(self):
@@ -47,12 +48,12 @@ class Environment(object):
 
     # Take a random action in the env
     def takeRandomActions(self, steps):
-        self._newGame()
+        self.newGame()
         for _ in range(steps):
             self.takeAction(self.gym_env.action_space.sample())
 
             if self.done:
-                self._newGame()
+                self.newGame()
 
     # Take action in the env
     def takeAction(self, action):
@@ -67,7 +68,7 @@ class Environment(object):
         self.takeRandomActions(num_steps)
 
     # Reset the env state to a starting state
-    def _newGame(self):
+    def newGame(self):
         self.state *= 0
         self.done = False
         self.reward = None

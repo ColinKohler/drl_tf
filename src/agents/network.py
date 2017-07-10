@@ -8,6 +8,7 @@ class Network(object):
         self.lr = lr
         self.batch_size = batch_size
         self.queue_size = queue_size
+        self.log = log
 
         self._createNetwork(in_shape, out_shape, network_config)
 
@@ -71,6 +72,9 @@ class Network(object):
 
             with tf.name_scope('predict'):
                 self.predict_op = tf.argmax(self.q_values, 1)
+
+            if self.log:
+                tf.summary.scalar('loss', self.loss)
 
     # Create layer detailed in config dict
     def createLayer(self, prev_layer, config, out_shape):

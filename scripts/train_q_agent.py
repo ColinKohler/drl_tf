@@ -7,7 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 
-
 from agents.q_agent import Q_Agent
 from environment import Environment
 import constants
@@ -22,6 +21,12 @@ def getActionsForEnv(env_name):
         sys.exit()
 
 def train(args):
+    # Create ckpt dir if it does not exist
+    if args.save_model:
+        save_dir = constants.TF_MODELS_PATH + '{}/'.format(env_name)
+        if not os.path.isdir(save_dir):
+            os.makedirs(save_dir)
+
     # Init gym env
     env = Environment(args.env_name)
     agent = Q_Agent(env, args.lr, args.discount, args.s_eps, args.e_eps, args.eps_decay_steps, args.t_eps)
