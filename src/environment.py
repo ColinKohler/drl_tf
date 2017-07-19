@@ -7,30 +7,37 @@ import constants
 class Environment(object):
     def __init__(self, env_name):
         self.gym_env = gym.make(env_name)
+        self.max_eps_steps = self.gym_env.spec.tags.get('wrapper_config.TimeLimit.max_episode_steps')
 
+        # Set state variables for image/non-images
         self.is_state_image = env_name in constants.ENVS_WITH_IMAGE_STATES
         if self.is_state_image:
-            self.exp_length = self.state_shape[1]
-            self.frame_size = self.state_shape[-2:]
+            self.exp_length = constants.FRAMES_PER_STATE
+            self.frame_size = constants.FRAME_SIZE
+            self.state_shape = [self.exp_length, self.frame_size, self.frame_size]
         else:
             self.exp_length = 1
             self.frame_size = None
+            self.state_shape = list(self.gym_env.observation_space.shape)
 
+        # Set discrete or continuous state
         self.num_actions = self.gym_env.action_space.n
         if type(self.gym_env.observation_space) is gym.spaces.box.Box:
             self.isEnvStateDiscrete = False
-            self.state_shape = list(self.gym_env.observation_space.shape)
             self.state = np.zeros(self.state_shape, dtype=np.float32)
             self._discretizeContinuousSpace()
         else:
             self.isEnvStateDiscrete = True
             #self.state_shape = self.gym_env.observation_space.n
             self.state_shape = [1]
+            self.num_discrete_states = [self.gym_env.observation_space.n]
             self.state = np.zeros(1, dtype=np.uint8)
 
+    # Render the gym env
     def render(self):
         self.gym_env.render()
 
+    # Get the current state
     def getState(self, getDiscreteState=False):
         if self.isEnvStateDiscrete:
             return self.state[0]
@@ -46,8 +53,26 @@ class Environment(object):
             discrete_state += 2**i * self._findNearest(discrete_space, s)
         return discrete_state
 
-    # Take a random action in the env
-    def takeRandomActions(self, steps):
+    # Take action in the env
+    def takeAction(self, action):
+        new_state, self.reward, self.done, self.info = self.gym_env.step(action)
+        new_state = self._processState(new_state)
+        self.eps_steps += 1
+
+        if self.exp_length == 1:
+            np.copyto(self.state, new_state)
+        else:
+            self.state[:-1] = self.state[1:]
+            self.state[-1] = new_state
+
+        # Reset the env if past max number of steps per episode
+        if self.eps_steps >= self.max_eps_steps:
+            self.done = True
+
+    # Reset the env state to a random starting state
+    def newRandomGame(self):
+        num_steps = np.random.randint(self.exp_length, constants.NEW_GAME_MAX_RANDOM_STEPS)
+
         self.newGame()
         for _ in range(steps):
             self.takeAction(self.gym_env.action_space.sample())
@@ -55,24 +80,13 @@ class Environment(object):
             if self.done:
                 self.newGame()
 
-    # Take action in the env
-    def takeAction(self, action):
-        new_state, self.reward, self.done, self.info = self.gym_env.step(action)
-        new_state = self._processState(new_state)
-
-        np.copyto(self.state, new_state)
-
-    # Reset the env state to a random starting state
-    def newRandomGame(self):
-        num_steps = np.random.randint(self.exp_length, constants.NEW_GAME_MAX_RANDOM_STEPS)
-        self.takeRandomActions(num_steps)
-
     # Reset the env state to a starting state
     def newGame(self):
         self.state *= 0
         self.done = False
         self.reward = None
         self.info = None
+        self.eps_steps = 0
 
         new_state = self._processState(self.gym_env.reset())
         self.state[:] = new_state
@@ -83,7 +97,7 @@ class Environment(object):
             # Using Pillow-SIMD for fast image processing
             im = PIL.Image.fromarray(state)
             g_im = im.convert('L')
-            r_im = g_im.resize(self.frame_size)
+            r_im = g_im.resize(self.state_shape[-2:])
             state = np.asarray(r_im, dtype=np.uint8)
         else:
             state = state

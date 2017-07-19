@@ -12,6 +12,9 @@ from environment import Environment
 import constants
 from statistics import Statistics
 
+# Custom Env
+import helping_hands
+
 # Gets the actions for the current env from the constants
 def getActionsForEnv(env_name):
     if env_name in constants.ACTIONS:
@@ -21,12 +24,6 @@ def getActionsForEnv(env_name):
         sys.exit()
 
 def train(args):
-    # Create ckpt dir if it does not exist
-    if args.save_model:
-        save_dir = constants.TF_MODELS_PATH + '{}/'.format(env_name)
-        if not os.path.isdir(save_dir):
-            os.makedirs(save_dir)
-
     # Init gym env
     env = Environment(args.env_name)
     agent = Q_Agent(env, args.lr, args.discount, args.s_eps, args.e_eps, args.eps_decay_steps, args.t_eps)
@@ -43,9 +40,10 @@ def train(args):
 
         print 'Testing for %d steps' % args.test_steps
         stats.reset()
-        agent.run(args.test_steps)
+        agent.run(args.test_steps, train=False)
         stats.write(epoch+1, 'test')
 
+    agent.run(5000, train=False, render=True)
     stats.close()
     print 'Done'
 
@@ -72,7 +70,7 @@ def main():
                           help='The starting epsilon value')
     agentarg.add_argument('--e_eps', dest='e_eps', type=float, default=0.1,
                           help='The ending epsilon value')
-    agentarg.add_argument('--t_eps', dest='t_eps', type=float, default=0.05,
+    agentarg.add_argument('--t_eps', dest='t_eps', type=float, default=0.0,
                           help='Exploration rate used in testing.')
     agentarg.add_argument('--eps_decay_steps', dest='eps_decay_steps', type=float, default=1000000,
                           help='Number of steps to decay the exploration rate.')

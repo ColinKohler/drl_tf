@@ -40,7 +40,7 @@ class Network(object):
             # Convert images from uint8 to float32
             if network_config['is_input_img']:
                 with tf.device('/gpu:0'):
-                    self.batch_input = tf.div(batch_input, 255.0)
+                    self.batch_input = tf.div(self.batch_input, 255.0)
 
             # Setup layers
             self.weights = dict(); prev_layer = self.batch_input
@@ -49,8 +49,9 @@ class Network(object):
 
                 prev_layer = layer
                 layer_name = layer_config['name']
-                self.weights[layer_name+'_w'] = layer_weights
-                self.weights[layer_name+'_b'] = layer_biases
+                if layer_weights is not None:
+                    self.weights[layer_name+'_w'] = layer_weights
+                    self.weights[layer_name+'_b'] = layer_biases
 
             # Setup training and predict ops
             self.q_values = prev_layer
@@ -68,7 +69,7 @@ class Network(object):
                 self.loss = tf.reduce_mean(clipped_err)
 
             with tf.name_scope('train'):
-                self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss)
+                self.train_op = tf.train.AdamOptimizer(self.lr, epsilon=0.01).minimize(self.loss)
 
             with tf.name_scope('predict'):
                 self.predict_op = tf.argmax(self.q_values, 1)
@@ -87,6 +88,8 @@ class Network(object):
             return self.fcLayer(prev_layer, out_shape, name, act=tf.identity)
         elif config['type'] == 'pool':
             return self.maxPoolLayer(self, prev_layer, config['filter'], config['stride'], name)
+        elif config['type'] == 'flatten':
+            return None, None, tf.contrib.layers.flatten(prev_layer)
 
     def createSummaries(self):
         pass

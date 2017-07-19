@@ -20,5 +20,5 @@ class Agent(object):
             self.train_eps = self.train_end_eps
 
     # Run the agent for the desired number of steps either training or testing
-    def run(self, num_steps, train=False):
+    def run(self, num_steps, train=False, render=False):
         raise NotImplementedError("All agents must have a run method implemented...")

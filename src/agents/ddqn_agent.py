@@ -17,7 +17,10 @@ class DDQN_Agent(Agent):
         self.batch_size = batch_size
         self.queue_size = self.batch_size * 4
         self.use_tensorboard = use_tensorboard
-        self.exp_replay = ExpReplay(self.env.state_shape, batch_size, env.exp_length, capacity=exp_replay_size)
+        if self.env.exp_length == 1:
+            self.exp_replay = ExpReplay(self.env.state_shape, batch_size, self.env.exp_length, capacity=exp_replay_size)
+        else:
+            self.exp_replay = ExpReplay(self.env.state_shape[-2:], batch_size, self.env.exp_length, capacity=exp_replay_size)
         self.train_freq = train_freq
         self.update_target_freq = update_target_freq
 
@@ -42,6 +45,7 @@ class DDQN_Agent(Agent):
         self.writer = tf.summary.FileWriter(constants.TF_LOG_PATH + '/train', self.sess.graph)
         self.saver = tf.train.Saver()
         self.sess.run(tf.global_variables_initializer())
+        self.sess.graph.finalize()
 
         print 'Initialized new model...'
 
@@ -67,7 +71,7 @@ class DDQN_Agent(Agent):
         step = 0;
         self.env.newGame()
         while step < num_steps:
-            action = np.random.randint(self.env.num_actions)
+            action = self.env.gym_env.action_space.sample()
             self.env.takeAction(action)
             self._storeExperience(action)
 
@@ -84,7 +88,7 @@ class DDQN_Agent(Agent):
             self.env.newGame()
 
             while not self.env.done:
-                if render: self.end.render()
+                if render: self.env.render()
 
                 # Take action greedly with eps proability
                 if np.random.rand(1) < eps:
@@ -93,7 +97,6 @@ class DDQN_Agent(Agent):
                     action = self._selectAction(self.env.state)
                 self.env.takeAction(action)
                 self._storeExperience(action)
-                self.callback.onStep(action, self.env.reward, self.env.done, eps)
 
                 # Train and update networks as neccessary
                 if train and step % self.train_freq == 0:
@@ -109,7 +112,10 @@ class DDQN_Agent(Agent):
                 # Handle episode termination
                 if self.env.done or step >= num_steps:
                     episode_num += 1
+                    self.callback.onStep(action, self.env.reward, True, eps)
                     break
+                else:
+                    self.callback.onStep(action, self.env.reward, self.env.done, eps)
 
     # Choose action greedly from network
     def _selectAction(self, state):
@@ -119,7 +125,7 @@ class DDQN_Agent(Agent):
     # Store the transition into memory
     def _storeExperience(self, action):
         with self.replay_lock:
-            self.exp_replay.storeExperience(self.env.state, action, self.env.reward, self.env.done)
+            self.exp_replay.storeExperience(self.env.state[-1], action, self.env.reward, self.env.done)
 
     # Get Q values based off predicted max future reward
     def _getTargetQValues(self, states, actions, rewards, states_, done_flags):
@@ -138,12 +144,12 @@ class DDQN_Agent(Agent):
         while self.sess.run(self.q_model.queue_size_op) < self.batch_size: continue
         s, _ = self.sess.run([self.merged, self.q_model.train_op])
 
-        if self.use_tensorboard and (self.train_iterations == 0 or (self.train_iterations % 100) == 0):
+        if self.use_tensorboard and self.train_iterations % 100 == 0:
             self.writer.add_summary(s, self.train_iterations)
 
         self.train_iterations += 1
-        if self.callback:
-            self.callback.onTrain(self.q_model.loss)
+        #if self.callback:
+        #    self.callback.onTrain(self.q_model.loss)
 
     # Start threads to load training data into the network queue
     def startEnqueueThreads(self):

@@ -11,7 +11,6 @@ class Q_Agent(Agent):
         super(Q_Agent, self).__init__(env, lr, discount, s_eps, e_eps, eps_decay_steps, test_eps)
 
         num_obs_space = reduce(lambda x,y : x*y, self.env.num_discrete_states)
-        #num_obs_space = self.env.gym_env.observation_space.n
         self.q_table = np.zeros([num_obs_space, self.env.num_actions])
 
     # Run the agent for the desired number of steps either training or testing
@@ -19,8 +18,8 @@ class Q_Agent(Agent):
         step = 0; episode_num = 0
         eps = self.train_eps if train else self.test_eps
         while step < num_steps:
-            reward_sum = 0.0;
-            self.env._newGame()
+            reward_sum = 0.0
+            self.env.newGame()
 
             while not self.env.done:
                 if render: self.env.render()

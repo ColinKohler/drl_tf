@@ -13,12 +13,12 @@ class ExpReplay(object):
         self.index = 0
         self.size = 0
 
-        if self.exp_length != 1:
-            self.batch_states = np.empty([self.batch_size, self.exp_length]+state_shape, dtype=np.float16)
-            self.batch_states_ = np.empty([self.batch_size, self.exp_length]+state_shape, dtype=np.float16)
-        else:
+        if self.exp_length == 1:
             self.batch_states = np.empty([self.batch_size]+state_shape, dtype=np.float16)
             self.batch_states_ = np.empty([self.batch_size]+state_shape, dtype=np.float16)
+        else:
+            self.batch_states  = np.empty([self.batch_size, self.exp_length]+state_shape, dtype=np.float16)
+            self.batch_states_ = np.empty([self.batch_size, self.exp_length]+state_shape, dtype=np.float16)
 
     # Store experience in memory
     def storeExperience(self, state, action, reward, terminal):
