@@ -120,17 +120,17 @@ class Statistics(object):
             self.num_eps = 1
             self.avg_reward = self.eps_reward
 
-        #if self.validation_states is None and self.agent.exp_replay.size > self.agent.minibatch_size:
-        #    self.validation_states, _ = self.agent.exp_replay.getBatch()
+        if self.validation_states is None and self.agent.exp_replay.size > self.agent.minibatch_size:
+            self.validation_states, _ = self.agent.exp_replay.getBatch()
 
-        #if self.validation_states is not None:
-        #    state_shape = [-1] + self.agent.state_shape
-        #    qs = self.agent.sess.run(self.agent.q_model.qs,
-        #            feed_dict={self.agent.q_model.inp : np.array(self.validation_states).reshape(state_shape)})
-        #    max_qs = np.max(qs, axis=1)
-        #    mean_q = np.mean(max_qs)
-        #else:
-        mean_q = 0
+        if self.validation_states is not None:
+            state_shape = [-1] + self.agent.state_shape
+            qs = self.agent.sess.run(self.agent.q_model.qs,
+                    feed_dict={self.agent.q_model.inp : np.array(self.validation_states).reshape(state_shape)})
+            max_qs = np.max(qs, axis=1)
+            mean_q = np.mean(max_qs)
+        else:
+            mean_q = 0
 
         self.csv_writer.writerow((
             epoch,
@@ -141,13 +141,13 @@ class Statistics(object):
             self.min_reward,
             self.max_reward,
             self.eps,
-            #self.agent.total_train_steps,
+            self.agent.total_train_steps,
             0,
-            #self.agent.exp_replay.size,
+            self.agent.exp_replay.size,
             0,
             mean_q,
             self.avg_loss,
-            #self.agent.train_iterations,
+            self.agent.train_iterations,
             0,
             total_time,
             epoch_time,

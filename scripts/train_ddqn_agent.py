@@ -6,8 +6,9 @@ import gym.spaces
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
+import tensorflow as tf
 
-from agents.ddqn_agent import DDQN_Agent
+from agents.dqn_agent import DQN_Agent
 from environment import Environment
 import constants
 from statistics import Statistics
@@ -32,51 +33,45 @@ def train(args):
     #    actions = env.action_space
     #    num_actions = env.action_space.n
 
-    # Setup save path for run
-    if args.load_model and args.saved_model is None:
-        saved_model_path = constants.TF_MODELS_PATH + env_name
-    elif args.saved_model is not None:
-        saved_model_path = '{}/{}'.format(constants.TF_MODELS_PATH + env_name, args.saved_model)
+    # Get filepath to model to load
+    if args.load_model:
+        saved_model_path = '{}/{}'.format(constants.TF_MODELS_PATH + env_name, args.load_model)
     else:
         saved_model_path = None
 
     # Create ckpt dir if it does not exist
-    if args.save_model:
-        save_dir = constants.TF_MODELS_PATH + '{}/'.format(args.env_name)
-        if not os.path.isdir(save_dir):
-            os.makedirs(save_dir)
+    save_dir = constants.TF_MODELS_PATH + '{}/'.format(args.env_name)
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir)
 
-    # Init environment and agent
-    env = Environment(args.env_name)
-    agent = DDQN_Agent(env, args.lr, args.discount, args.s_eps, args.e_eps, args.eps_decay_steps, args.t_eps,
-                      constants.MLP, args.train_freq, args.update_target_freq, args.batch_size, args.exp_replay_size, saved_model=saved_model_path)
-    stats = Statistics(agent, env, args.epochs, args.env_name, args.job_name)
+    with tf.Session() as sess:
+        # Init environment and agent
+        env = Environment(args.env_name)
+        agent = DQN_Agent(sess, env, args, load_model=saved_model_path)
+        stats = Statistics(agent, env, args.epochs, args.env_name, args.job_name)
 
-    # Train agent
-    print 'Populating experience replay memory with %d random moves' % args.random_steps
-    stats.reset()
-    agent.randomExplore(args.random_steps)
-    stats.write(0, 'random')
+        # Train agent
+        print 'Taking %d random actions before training' % args.steps_pre_train
+        agent.randomExplore(args.steps_pre_train)
 
-    agent.startEnqueueThreads()
-    for epoch in range(args.epochs):
-        print 'Epoch #%d' % (epoch+1)
+        agent.startEnqueueThreads()
+        for epoch in range(args.epochs):
+            print 'Epoch #%d' % (epoch+1)
 
-        print 'Training for %d steps' % args.train_steps
-        stats.reset()
-        agent.run(args.train_steps, train=True)
-        stats.write(epoch+1, 'train')
+            print 'Training for %d steps' % args.train_steps
+            stats.reset()
+            agent.run(args.train_steps, train=True)
+            stats.write(epoch+1, 'train')
+            agent.saveModel(save_dir + '{}_{}'.format(args.env_name, epoch+1))
 
-        if args.save_model:
-            env.agent.saveModel(save_dir + '{}_{}'.format(env_name, epoch+1))
+            print 'Testing for %d steps' % args.test_steps
+            stats.reset()
+            agent.run(args.test_steps, train=False)
+            stats.write(epoch+1, 'test')
 
-        print 'Testing for %d steps' % args.test_steps
-        stats.reset()
-        agent.run(args.test_steps)
-        stats.write(epoch+1, 'test')
-
-    stats.close()
-    print 'Done'
+        agent.stopEnqueueThreads()
+        stats.close()
+        print 'Done'
 
 # Parse command line input to strucutre the RL problem
 def main():
@@ -89,39 +84,29 @@ def main():
                         help='The OpenAI Gym environment to train on')
     envarg.add_argument('--epochs', dest='epochs', type=int, default=200,
                         help='How many epochs to run')
-    envarg.add_argument('--random_steps', dest='random_steps', type=int, default=50000,
-                        help='Number of random steps to populate memory with before learning.')
     envarg.add_argument('--train_steps', dest='train_steps', type=int, default=250000,
                         help='Number of training steps per epoch.')
     envarg.add_argument('--test_steps', dest='test_steps', type=int, default=125000,
                         help='Number of testing steps per epoch.')
-    envarg.add_argument('--frame_size', dest='frame_size', type=int, default=84,
-                        help='The NxN size of the frame after resizing')
-    envarg.add_argument('--frames_per_state', dest='frames_per_state', type=int, default=4,
-                        help='How many frames form a state.')
-    envarg.add_argument('--log_freq', dest='log_freq', type=int, default=1,
-                        help='The number of episodes to log training info')
-    envarg.add_argument('--render', dest='render', action='store_true',
-                        help='Should we render the environment during the specified mode')
-    envarg.add_argument('--load_model', dest='load_model', action='store_true',
-                        help='Should we attempt to load a previously trained model')
-    envarg.add_argument('--saved_model', dest='saved_model', type=str, default=None,
-                        help='Specify the saved model to be loaded')
-    envarg.add_argument('--summarize', dest='summarize', action='store_true',
-                        help='Should we summarize the training using TensorBoard')
-    envarg.add_argument('--save_model', dest='save_model', action='store_true',
-                        help='Save the training weights after each epoch')
+    envarg.add_argument('--steps_pre_train', dest='steps_pre_train', type=int, default=0,
+                        help='Number of steps to take before starting to train')
+    envarg.add_argument('--history_length', dest='history_length', type=int, default=4,
+                        help='The length of history of observations to use as state input')
+    envarg.add_argument('--random_start', dest='random_start', default=False, action='store_true',
+                        help='Start each episode with a random state.')
 
     memarg = parser.add_argument_group('Replay Memory')
-    memarg.add_argument('--exp_replay_size', dest='exp_replay_size', type=int, default=1e6,
+    memarg.add_argument('--exp_replay_size', dest='exp_replay_size', type=int, default=1000000,
                         help='The size of the experience buffer')
 
     agentarg = parser.add_argument_group('DDQN Agent')
+    agentarg.add_argument('--double_q', dest='double_q', default=False, action='store_true',
+                          help='Wether to use double Q-learning')
     agentarg.add_argument('--s_eps', dest='s_eps', type=float, default=1.0,
                           help='The starting epsilon value')
-    agentarg.add_argument('--e_eps', dest='e_eps', type=float, default=0.1,
+    agentarg.add_argument('--e_eps', dest='e_eps', type=float, default=0.01,
                           help='The ending epsilon value')
-    agentarg.add_argument('--t_eps', dest='t_eps', type=float, default=0.05,
+    agentarg.add_argument('--t_eps', dest='t_eps', type=float, default=0.0,
                           help='Exploration rate used in testing.')
     agentarg.add_argument('--eps_decay_steps', dest='eps_decay_steps', type=float, default=1000000,
                           help='Number of steps to decay the exploration rate.')
@@ -131,14 +116,22 @@ def main():
                           help='Train the DQN every nth step.')
 
     netarg = parser.add_argument_group('DDQN Network')
+    netarg.add_argument('--network_type', dest='network_type', type=str, default='mlp',
+                        help='The type of network [mlp, nature, nips]')
+    netarg.add_argument('--load_model', dest='load_model', type=str, default=None,
+                        help='Specify the saved model to be loaded')
     netarg.add_argument('--lr', dest='lr', type=float, default=0.00025,
                         help='The learning rate')
+    netarg.add_argument('--lr_minimum', dest='lr_minimum', type=float, default=0.00025,
+                        help='The minimum learning rate during training')
+    netarg.add_argument('--lr_decay_step', dest='lr_decay_step', type=float, default=50000,
+                        help='The learning rate of training')
+    netarg.add_argument('--lr_decay', dest='lr_decay', type=float, default=0.96,
+                        help='The decay of the learning rate')
     netarg.add_argument('--discount', dest='discount', type=float, default=0.99,
                         help='The future reward discount')
     netarg.add_argument('--batch', dest='batch_size', type=int, default=32,
                         help='The size of the minibatch')
-
-    parser.set_defaults(render=False, load_model=False, summarize=False, save_model=False)
 
     args = parser.parse_args()
     train(args)

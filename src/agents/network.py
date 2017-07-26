@@ -3,9 +3,13 @@ import numpy as np
 import constants
 
 class Network(object):
-    def __init__(self, name, in_shape, out_shape, network_config, lr, batch_size, queue_size, log=True):
+    def __init__(self, name, in_shape, out_shape, network_config, lr,
+                       lr_min, lr_decay_step, lr_decay, batch_size, queue_size, log=True):
         self.name = name
         self.lr = lr
+        self.lr_minimum = lr_min
+        self.lr_decay_step = lr_decay_step
+        self.lr_decay = lr_decay
         self.batch_size = batch_size
         self.queue_size = queue_size
         self.log = log
@@ -54,22 +58,34 @@ class Network(object):
                     self.weights[layer_name+'_b'] = layer_biases
 
             # Setup training and predict ops
+            self.global_step = tf.Variable(0, trainable=False)
             self.q_values = prev_layer
+            self.max_q_values = tf.reduce_max(self.q_values, reduction_indices=1)
             self.q_value_idxs = tf.placeholder('int32', [None, None], 'q_idxs')
             self.q_values_with_idxs = tf.gather_nd(self.q_values, self.q_value_idxs)
 
             action_onehot = tf.one_hot(self.batch_action, out_shape, 1.0, 0.0, dtype=tf.float32)
-            q_values_acted = tf.reduce_sum(tf.multiply(self.q_values, action_onehot), axis=1)
+            q_values_acted = tf.reduce_sum(self.q_values * action_onehot, reduction_indices=1)
 
             with tf.name_scope('loss'):
-                err = tf.abs(self.batch_label - q_values_acted)
-                clipped_err = tf.where(tf.abs(err) < 1.0,
-                                       0.5 * tf.square(err),
-                                       tf.abs(err) - 0.5)
-                self.loss = tf.reduce_mean(clipped_err)
+                self.err = self.batch_label - q_values_acted
+                self.clipped_err = tf.where(tf.abs(self.err) < 1.0,
+                                            0.5 * tf.square(self.err),
+                                            tf.abs(self.err) - 0.5)
+                self.loss = tf.reduce_mean(self.clipped_err)
 
             with tf.name_scope('train'):
-                self.train_op = tf.train.AdamOptimizer(self.lr, epsilon=0.01).minimize(self.loss)
+                self.lr_op = tf.maximum(self.lr_minimum,
+                    tf.train.exponential_decay(
+                        self.lr,
+                        self.global_step,
+                        self.lr_decay_step,
+                        self.lr_decay,
+                        staircase=True))
+
+                #self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss)
+                optimizer = tf.train.RMSPropOptimizer(self.lr_op, momentum=0.95, epsilon=0.01)
+                self.train_op = optimizer.minimize(self.loss, global_step=self.global_step)
 
             with tf.name_scope('predict'):
                 self.predict_op = tf.argmax(self.q_values, 1)
@@ -83,7 +99,7 @@ class Network(object):
         if config['type'] == 'conv':
             return self.convLayer(prev_layer, config['filter'], config['stride'], name)
         elif config['type'] == 'fc' and not config['last_layer']:
-            return self.fcLayer(prev_layer, config['num_neurons'], name)
+            return self.fcLayer(prev_layer, config['num_neurons'], name, act=config['act'])
         elif config['type'] == 'fc' and config['last_layer']:
             return self.fcLayer(prev_layer, out_shape, name, act=tf.identity)
         elif config['type'] == 'pool':
@@ -116,7 +132,8 @@ class Network(object):
             weights = self.initWeightVariable('weights', [inp.get_shape()[-1], out_shape])
             biases = self.initBiasVariable('bias', out_shape)
 
-            activations = tf.nn.xw_plus_b(inp, weights, biases, name='activation')
+            preactivations = tf.nn.bias_add(tf.matmul(inp, weights), biases)
+            activations = act(preactivations, name='activation')
 
         return weights, biases, activations
 
@@ -130,4 +147,4 @@ class Network(object):
         return tf.get_variable(name, shape=shape, initializer=tf.contrib.layers.xavier_initializer())
 
     def initBiasVariable(self, name, shape):
-        return tf.get_variable(name, shape=shape, initializer=tf.constant_initializer(0.1))
+        return tf.get_variable(name, shape=shape, initializer=tf.zeros_initializer())

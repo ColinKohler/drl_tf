@@ -1,3 +1,5 @@
+import tensorflow as tf
+
 # Important Filepaths
 TF_LOG_PATH = '/home/colin/workspace/machine_learning_experiments/tf_logs/'
 TF_MODELS_PATH = '/home/colin/workspace/machine_learning_experiments/drl_experiments/models/'
@@ -18,10 +20,12 @@ MLP = {'is_input_img' : False,
            {'name' : 'fc_1',
             'type' : 'fc',
             'num_neurons' : 64,
+            'act' : tf.sigmoid,
             'last_layer' : False},
            {'name' : 'fc_2',
             'type' : 'fc',
             'num_neurons' : 64,
+            'act' : tf.sigmoid,
             'last_layer' : False},
            {'name' : 'output',
             'type' : 'fc',
@@ -46,6 +50,7 @@ CNN = {'is_input_img' : True,
             {'name' : 'fc_1',
              'type' : 'fc',
              'num_neurons' : 512,
+             'act' : tf.nn.relu,
              'last_layer' : False},
             {'name' : 'output',
              'type' : 'fc',

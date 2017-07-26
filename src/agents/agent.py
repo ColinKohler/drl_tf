@@ -1,14 +1,15 @@
 
 class Agent(object):
-    def __init__(self, env, lr,  discount, s_eps, e_eps, eps_decay_steps, test_eps):
+    def __init__(self, sess, env, conf):
+        self.sess = sess
         self.env = env
-        self.lr = lr
-        self.discount = discount
+        self.lr = conf.lr
+        self.discount = conf.discount
 
-        self.test_eps = test_eps
-        self.train_eps = s_eps
-        self.train_end_eps = e_eps
-        self.decay_eps = (s_eps - e_eps) / float(eps_decay_steps)
+        self.test_eps = conf.t_eps
+        self.train_eps = conf.s_eps
+        self.train_end_eps = conf.e_eps
+        self.decay_eps = (conf.s_eps - conf.e_eps) / float(conf.eps_decay_steps)
 
         self.callback = None
 

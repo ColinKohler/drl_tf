@@ -18,20 +18,21 @@ class Environment(object):
         else:
             self.exp_length = 1
             self.frame_size = None
-            self.state_shape = list(self.gym_env.observation_space.shape)
+            #self.state_shape = list(self.gym_env.observation_space.shape)
 
         # Set discrete or continuous state
         self.num_actions = self.gym_env.action_space.n
         if type(self.gym_env.observation_space) is gym.spaces.box.Box:
-            self.isEnvStateDiscrete = False
+            self.is_env_state_discrete = False
             self.state = np.zeros(self.state_shape, dtype=np.float32)
             self._discretizeContinuousSpace()
         else:
-            self.isEnvStateDiscrete = True
+            self.is_env_state_discrete = True
             #self.state_shape = self.gym_env.observation_space.n
-            self.state_shape = [1]
+            #self.state_shape = [1]
+            self.state_shape = [self.gym_env.observation_space.n]
             self.num_discrete_states = [self.gym_env.observation_space.n]
-            self.state = np.zeros(1, dtype=np.uint8)
+            self.state = np.zeros(self.state_shape, dtype=np.uint8)
 
     # Render the gym env
     def render(self):
@@ -39,9 +40,7 @@ class Environment(object):
 
     # Get the current state
     def getState(self, getDiscreteState=False):
-        if self.isEnvStateDiscrete:
-            return self.state[0]
-        elif getDiscreteState:
+        if getDiscreteState:
             return self._getDiscreteState()
         else:
             return self.state
@@ -56,6 +55,7 @@ class Environment(object):
     # Take action in the env
     def takeAction(self, action):
         new_state, self.reward, self.done, self.info = self.gym_env.step(action)
+        self.reward = max(-1.0, min(1.0, self.reward))
         new_state = self._processState(new_state)
         self.eps_steps += 1
 
@@ -74,7 +74,7 @@ class Environment(object):
         num_steps = np.random.randint(self.exp_length, constants.NEW_GAME_MAX_RANDOM_STEPS)
 
         self.newGame()
-        for _ in range(steps):
+        for _ in range(num_steps):
             self.takeAction(self.gym_env.action_space.sample())
 
             if self.done:
@@ -99,6 +99,10 @@ class Environment(object):
             g_im = im.convert('L')
             r_im = g_im.resize(self.state_shape[-2:])
             state = np.asarray(r_im, dtype=np.uint8)
+        elif self.is_env_state_discrete:
+            tmp_state = np.zeros(self.state_shape, dtype=np.uint8)
+            tmp_state[state] = 1
+            state = tmp_state
         else:
             state = state
 
