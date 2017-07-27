@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os
+import sys
 import gym
 import gym.spaces
 import numpy as np
@@ -33,45 +34,41 @@ def train(args):
     #    actions = env.action_space
     #    num_actions = env.action_space.n
 
-    # Get filepath to model to load
-    if args.load_model:
-        saved_model_path = '{}/{}'.format(constants.TF_MODELS_PATH + env_name, args.load_model)
-    else:
-        saved_model_path = None
-
-    # Create ckpt dir if it does not exist
-    save_dir = constants.TF_MODELS_PATH + '{}/'.format(args.env_name)
-    if not os.path.isdir(save_dir):
-        os.makedirs(save_dir)
-
     with tf.Session() as sess:
         # Init environment and agent
         env = Environment(args.env_name)
-        agent = DQN_Agent(sess, env, args, load_model=saved_model_path)
-        stats = Statistics(agent, env, args.epochs, args.env_name, args.job_name)
+        agent = DQN_Agent(sess, env, args)
+        stats = Statistics(sess, agent, env, args.job_name)
+        sess.graph.finalize()
 
-        # Train agent
-        print 'Taking %d random actions before training' % args.steps_pre_train
-        agent.randomExplore(args.steps_pre_train)
+        try:
+            # Train agent
+            print 'Taking %d random actions before training' % args.steps_pre_train
+            agent.randomExplore(args.steps_pre_train)
 
-        agent.startEnqueueThreads()
-        for epoch in range(args.epochs):
-            print 'Epoch #%d' % (epoch+1)
+            agent.startEnqueueThreads()
+            for epoch in range(args.epochs):
+                print 'Epoch #%d' % (epoch+1)
 
-            print 'Training for %d steps' % args.train_steps
-            stats.reset()
-            agent.run(args.train_steps, train=True)
-            stats.write(epoch+1, 'train')
-            agent.saveModel(save_dir + '{}_{}'.format(args.env_name, epoch+1))
+                if args.train_steps > 0:
+                    print 'Training for %d steps' % args.train_steps
+                    agent.run(args.train_steps, train=True)
+                    stats.write(epoch+1, 'train')
 
-            print 'Testing for %d steps' % args.test_steps
-            stats.reset()
-            agent.run(args.test_steps, train=False)
-            stats.write(epoch+1, 'test')
+                if args.test_steps > 0:
+                    print 'Testing for %d steps' % args.test_steps
+                    agent.run(args.test_steps, train=False)
+                    stats.write(epoch+1, 'test')
 
-        agent.stopEnqueueThreads()
-        stats.close()
-        print 'Done'
+            agent.stopEnqueueThreads()
+            stats.plot()
+            stats.close()
+            print 'Done'
+        except KeyboardInterrupt:
+            stats.plot()
+            stats.close()
+            agent.stopEnqueueThreads()
+            print 'Caught keyboard interrupt, stopping run...'
 
 # Parse command line input to strucutre the RL problem
 def main():
@@ -118,8 +115,8 @@ def main():
     netarg = parser.add_argument_group('DDQN Network')
     netarg.add_argument('--network_type', dest='network_type', type=str, default='mlp',
                         help='The type of network [mlp, nature, nips]')
-    netarg.add_argument('--load_model', dest='load_model', type=str, default=None,
-                        help='Specify the saved model to be loaded')
+    netarg.add_argument('--load_model', dest='load_model', default=False, action='store_true',
+                        help='Load the latest model')
     netarg.add_argument('--lr', dest='lr', type=float, default=0.00025,
                         help='The learning rate')
     netarg.add_argument('--lr_minimum', dest='lr_minimum', type=float, default=0.00025,

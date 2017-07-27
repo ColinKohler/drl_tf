@@ -10,7 +10,7 @@ from network import Network
 import constants
 
 class DQN_Agent(Agent):
-    def __init__(self, sess, env, conf, load_model=None):
+    def __init__(self, sess, env, conf):
         super(DQN_Agent, self).__init__(sess, env, conf)
 
         if conf.network_type == 'mlp':
@@ -37,31 +37,20 @@ class DQN_Agent(Agent):
         self.replay_lock = threading.Lock()
 
         self._initModel(conf.lr, conf.lr_minimum, conf.lr_decay_step, conf.lr_decay)
-        if load_model is not None:
-            self.saver.restore(self.sess, load_model)
         self._updateTargetModel()
 
     # Init tensorflow network model
     def _initModel(self, lr, lr_min, lr_decay_step, lr_decay):
         self.q_model = Network('q_network', self.env.state_shape, self.env.num_actions,
                                self.net_config, lr, lr_min, lr_decay_step, lr_decay,
-                               self.batch_size, self.queue_size, log=True)
+                               self.batch_size, self.queue_size)
         self.t_model = Network('t_network', self.env.state_shape, self.env.num_actions,
                                self.net_config, lr, lr_min, lr_decay_step, lr_decay,
-                               self.batch_size, self.queue_size, log=False)
+                               self.batch_size, self.queue_size)
+        self.sess.run(tf.global_variables_initializer())
         self.copy_op = self._setupTargetUpdates()
 
-        self.merged = tf.summary.merge_all()
-        self.writer = tf.summary.FileWriter(constants.TF_LOG_PATH + '/train', self.sess.graph)
-        self.saver = tf.train.Saver()
-        self.sess.run(tf.global_variables_initializer())
-        self.sess.graph.finalize()
-
         print 'Initialized new model...'
-
-    # Save the network model
-    def saveModel(self, loc):
-        save_path = self.saver.save(self.sess, loc)
 
     # Create ops to copy weights from online net to target net
     def _setupTargetUpdates(self):
@@ -160,14 +149,11 @@ class DQN_Agent(Agent):
     def _trainNetwork(self):
         # Wait until the queue has been filled up with experiences
         while self.sess.run(self.q_model.queue_size_op) < self.batch_size: continue
-        s, _ = self.sess.run([self.merged, self.q_model.train_op])
-
-        if self.train_iterations % 1 == 0:
-            self.writer.add_summary(s, self.train_iterations)
+        q_values, loss, _ = self.sess.run([self.q_model.q_values, self.q_model.loss, self.q_model.train_op])
 
         self.train_iterations += 1
-        #if self.callback:
-        #    self.callback.onTrain(self.q_model.loss)
+        if self.callback:
+            self.callback.onTrain(q_values, loss)
 
     # Start threads to load training data into the network queue
     def startEnqueueThreads(self):

@@ -4,7 +4,7 @@ import constants
 
 class Network(object):
     def __init__(self, name, in_shape, out_shape, network_config, lr,
-                       lr_min, lr_decay_step, lr_decay, batch_size, queue_size, log=True):
+                       lr_min, lr_decay_step, lr_decay, batch_size, queue_size):
         self.name = name
         self.lr = lr
         self.lr_minimum = lr_min
@@ -12,7 +12,6 @@ class Network(object):
         self.lr_decay = lr_decay
         self.batch_size = batch_size
         self.queue_size = queue_size
-        self.log = log
 
         self._createNetwork(in_shape, out_shape, network_config)
 
@@ -90,9 +89,6 @@ class Network(object):
             with tf.name_scope('predict'):
                 self.predict_op = tf.argmax(self.q_values, 1)
 
-            if self.log:
-                tf.summary.scalar('loss', self.loss)
-
     # Create layer detailed in config dict
     def createLayer(self, prev_layer, config, out_shape):
         name = self.name + '_' + config['name']
@@ -106,9 +102,6 @@ class Network(object):
             return self.maxPoolLayer(self, prev_layer, config['filter'], config['stride'], name)
         elif config['type'] == 'flatten':
             return None, None, tf.contrib.layers.flatten(prev_layer)
-
-    def createSummaries(self):
-        pass
 
     ###############################################################################################
     #                              Layer Construction Utils                                       #

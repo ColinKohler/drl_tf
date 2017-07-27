@@ -6,6 +6,7 @@ import constants
 
 class Environment(object):
     def __init__(self, env_name):
+        self.name = env_name
         self.gym_env = gym.make(env_name)
         self.max_eps_steps = self.gym_env.spec.tags.get('wrapper_config.TimeLimit.max_episode_steps')
 
