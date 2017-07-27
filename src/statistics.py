@@ -169,7 +169,7 @@ class Statistics(object):
             'episode/rewards' : self.eps_rewards,
             'training/learning_rate' : self.agent.q_model.lr_op.eval(session=self.sess),
             'training/epsilon' : self.epsilon
-        }, self.agent.train_iterations)
+        }, epoch)
 
         # Save episode rewards for plotting later
         if phase == 'train':
@@ -190,7 +190,7 @@ class Statistics(object):
     def plot(self):
         plt.plot(self.train_epoch_rewards)
         plt.plot(self.test_epoch_rewards)
-        plt.legend(['Train', 'TEst'], loc='upper left')
+        plt.legend(['Train', 'Test'], loc='upper left')
         plt.savefig(self.plot_name)
 
     # Inject summary data into tensorboard

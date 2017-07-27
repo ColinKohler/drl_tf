@@ -26,23 +26,15 @@ def getActionsForEnv(env_name):
         sys.exit()
 
 def train(args):
-    # Setup discrete actions for env if they are continuous
-    #if type(env.action_space) is not gym.spaces.Discrete:
-    #    actions = getActionsForEnv(env_name)
-    #    num_actions = len(actions)
-    #else:
-    #    actions = env.action_space
-    #    num_actions = env.action_space.n
-
     with tf.Session() as sess:
         # Init environment and agent
         env = Environment(args.env_name)
         agent = DQN_Agent(sess, env, args)
         stats = Statistics(sess, agent, env, args.job_name)
+        if args.load_model: stats.loadModel()
         sess.graph.finalize()
 
         try:
-            # Train agent
             print 'Taking %d random actions before training' % args.steps_pre_train
             agent.randomExplore(args.steps_pre_train)
 
@@ -52,12 +44,12 @@ def train(args):
 
                 if args.train_steps > 0:
                     print 'Training for %d steps' % args.train_steps
-                    agent.run(args.train_steps, train=True)
+                    agent.train(args.train_steps)
                     stats.write(epoch+1, 'train')
 
                 if args.test_steps > 0:
                     print 'Testing for %d steps' % args.test_steps
-                    agent.run(args.test_steps, train=False)
+                    agent.test(args.test_steps)
                     stats.write(epoch+1, 'test')
 
             agent.stopEnqueueThreads()

@@ -29,7 +29,6 @@ class DQN_Agent(Agent):
             self.exp_replay = ExpReplay(self.env.state_shape[-2:], self.batch_size, self.env.exp_length, capacity=conf.exp_replay_size)
         self.train_freq = conf.train_freq
         self.update_target_freq = conf.update_target_freq
-        self.newGame = self.env.newRandomGame if conf.random_start else self.env.newGame
         self.double_q = conf.double_q
 
         self.train_iterations = 0
@@ -49,8 +48,6 @@ class DQN_Agent(Agent):
                                self.batch_size, self.queue_size)
         self.sess.run(tf.global_variables_initializer())
         self.copy_op = self._setupTargetUpdates()
-
-        print 'Initialized new model...'
 
     # Create ops to copy weights from online net to target net
     def _setupTargetUpdates(self):
@@ -78,16 +75,14 @@ class DQN_Agent(Agent):
                 self.newGame()
 
     # Run the agent for the desired number of steps either training or testing
-    def run(self, num_steps, train=False, render=False):
+    def train(self, num_steps):
         step = 0; episode_num = 0
-        eps = self.train_eps if train else self.test_eps
+        eps = self.train_eps
         while step < num_steps:
             reward_sum = 0.0;
             self.newGame()
 
             while not self.env.done:
-                if render: self.env.render()
-
                 # Take action greedly with eps proability
                 if np.random.rand(1) < eps:
                     action = np.random.randint(self.env.num_actions)
@@ -95,17 +90,16 @@ class DQN_Agent(Agent):
                     action = self._selectAction(self.env.state)
                 self.env.takeAction(action)
                 self._storeExperience(action)
+                self._decayEps()
+
+                reward_sum += self.env.reward
+                step += 1
 
                 # Train and update networks as neccessary
-                if train and step % self.train_freq == 0:
+                if step % self.train_freq == 0:
                     self._trainNetwork()
-                if train and step % self.update_target_freq == self.update_target_freq - 1:
+                if step % self.update_target_freq == self.update_target_freq - 1:
                     self._updateTargetModel()
-
-                # Handle various vairable updates
-                if train: self._decayEps()
-                reward_sum += self.env.reward
-                step += 1;
 
                 # Handle episode termination
                 if self.env.done or step >= num_steps:

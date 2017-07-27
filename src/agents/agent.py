@@ -10,6 +10,7 @@ class Agent(object):
         self.train_eps = conf.s_eps
         self.train_end_eps = conf.e_eps
         self.decay_eps = (conf.s_eps - conf.e_eps) / float(conf.eps_decay_steps)
+        self.newGame = self.env.newRandomGame if conf.random_start else self.env.newGame
 
         self.callback = None
 
@@ -21,5 +22,33 @@ class Agent(object):
             self.train_eps = self.train_end_eps
 
     # Run the agent for the desired number of steps either training or testing
-    def run(self, num_steps, train=False, render=False):
+    def train(self, num_steps):
         raise NotImplementedError("All agents must have a run method implemented...")
+
+    # Test the agent for the desired number of steps
+    def test(self, num_steps, render=False):
+        step = 0; episode_num = 0
+        while step < num_steps:
+            reward_sum = 0.0;
+            self.newGame()
+
+            while not self.env.done:
+                if render: self.env.render()
+
+                # Take action greedly with eps proability
+                if np.random.rand(1) < self.test_eps:
+                    action = np.random.randint(self.env.num_actions)
+                else:
+                    action = self._selectAction(self.env.state)
+                self.env.takeAction(action)
+
+                reward_sum += self.env.reward
+                step += 1
+
+                # Handle episode termination
+                if self.env.done or step >= num_steps:
+                    episode_num += 1
+                    self.callback.onStep(action, self.env.reward, True, eps)
+                    break
+                else:
+                    self.callback.onStep(action, self.env.reward, self.env.done, eps)

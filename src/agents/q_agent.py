@@ -14,15 +14,14 @@ class Q_Agent(Agent):
         self.q_table = np.zeros([num_obs_space, self.env.num_actions])
 
     # Run the agent for the desired number of steps either training or testing
-    def run(self, num_steps, train=False, render=False):
+    def train(self, num_steps):
         step = 0; episode_num = 0
-        eps = self.train_eps if train else self.test_eps
+        eps = self.train_eps
         while step < num_steps:
             reward_sum = 0.0
             self.env.newGame()
 
             while not self.env.done:
-                if render: self.env.render()
                 d_state = self.env.getState(getDiscreteState=True)
 
                 # Take action greedly with eps proability
@@ -31,19 +30,19 @@ class Q_Agent(Agent):
                 else:
                     action = np.argmax(self.q_table[d_state,:])
                 self.env.takeAction(action)
-                self.callback.onStep(action, self.env.reward, self.env.done, eps)
+                self._updateQTable(d_state, action)
+                self._decayEps()
 
-                # Handle various vairable updates
-                if train:
-                    self._updateQTable(d_state, action)
-                    self._decayEps()
                 reward_sum += self.env.reward
                 step += 1
 
                 # Handle episode termination
                 if self.env.done or step >= num_steps:
                     episode_num += 1
+                    self.callback.onStep(action, self.env.reward, True, eps)
                     break
+                else:
+                    self.callback.onStep(action, self.env.reward, self.env.done, eps)
 
     # Update the state, action Q Value in the Q table
     def _updateQTable(self, s, a):
