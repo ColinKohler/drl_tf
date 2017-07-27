@@ -1,3 +1,4 @@
+import numpy as np
 
 class Agent(object):
     def __init__(self, sess, env, conf):
@@ -48,7 +49,7 @@ class Agent(object):
                 # Handle episode termination
                 if self.env.done or step >= num_steps:
                     episode_num += 1
-                    self.callback.onStep(action, self.env.reward, True, eps)
+                    self.callback.onStep(action, self.env.reward, True, self.test_eps)
                     break
                 else:
-                    self.callback.onStep(action, self.env.reward, self.env.done, eps)
+                    self.callback.onStep(action, self.env.reward, self.env.done, self.test_eps)
