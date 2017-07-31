@@ -11,7 +11,7 @@ import constants
 
 class DQN_Agent(Agent):
     def __init__(self, sess, env, conf):
-        super(DQN_Agent, self).__init__(sess, env, conf)
+        super(DQN_Agent, self).__init__(env, conf)
 
         if conf.network_type == 'mlp':
             self.net_config = constants.MLP
@@ -21,6 +21,8 @@ class DQN_Agent(Agent):
             print 'Bad network config given! Exiting....'
             sys.exit(-1)
 
+        self.sess = sess
+        self.discrete = False
         self.batch_size = conf.batch_size
         self.queue_size = self.batch_size * 4
         if self.env.exp_length == 1:

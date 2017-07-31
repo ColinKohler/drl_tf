@@ -2,41 +2,49 @@ import sys
 import os
 import csv
 import time
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import tensorflow as tf
 
 import constants
 
 class Statistics(object):
-    def __init__(self, sess, agent, env, job_name):
+    def __init__(self, sess, agent, env, conf):
         self.sess = sess
         self.agent = agent
         self.env = env
         self.env.callback = self
         self.agent.callback = self
 
-        self.max_avg_eps_reward = 0.0
-        self.train_epoch_rewards = [0.0]
-        self.test_epoch_rewards = [0.0]
+        self.job_name = conf.job_name
+        self.train_steps = conf.train_steps
+
+        self.max_avg_eps_reward = -sys.maxint - 1
+        self.train_epoch_rewards = list()
+        self.test_epoch_rewards = list()
+        self.train_eps_rewards = list()
+        self.test_eps_rewards = list()
 
         # Setup tensorboard summaries
-        self.writer = tf.summary.FileWriter(constants.TF_LOG_PATH + '/train', self.sess.graph)
-        self.saver = tf.train.Saver()
-        with tf.variable_scope('summary'):
-            scalar_summary_tags = ['average/reward', 'average/loss', 'average/q_value',
-                                   'episode/max_reward', 'episode/min_reward', 'episode/avg_reward',
-                                   'episode/num_episodes', 'training/learning_rate', 'training/epsilon']
-            histogram_summary_tags = ['episode/rewards', 'episode/actions']
+        if self.sess is not None:
+            self.writer = tf.summary.FileWriter(constants.TF_LOG_PATH + '/train', self.sess.graph)
+            self.saver = tf.train.Saver()
+            with tf.variable_scope('summary'):
+                scalar_summary_tags = ['average/reward', 'average/loss', 'average/q_value',
+                                       'episode/max_reward', 'episode/min_reward', 'episode/avg_reward',
+                                       'episode/num_episodes', 'training/learning_rate', 'training/epsilon']
+                histogram_summary_tags = ['episode/rewards', 'episode/actions']
 
-            self.summary_placeholders = dict()
-            self.summary_ops = dict()
-            for tag in scalar_summary_tags:
-                self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag)
-                self.summary_ops[tag] = tf.summary.scalar(tag, self.summary_placeholders[tag])
-            for tag in histogram_summary_tags:
-                self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag)
-                self.summary_ops[tag] = tf.summary.histogram(tag, self.summary_placeholders[tag])
+                self.summary_placeholders = dict()
+                self.summary_ops = dict()
+                for tag in scalar_summary_tags:
+                    self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag)
+                    self.summary_ops[tag] = tf.summary.scalar(tag, self.summary_placeholders[tag])
+                for tag in histogram_summary_tags:
+                    self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag)
+                    self.summary_ops[tag] = tf.summary.histogram(tag, self.summary_placeholders[tag])
 
         # Create data collection repo
         self.csv_dir = constants.STATS_PATH + '{}/'.format(self.env.name)
@@ -50,8 +58,8 @@ class Statistics(object):
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
 
-        self._initCSV(job_name)
-        self.plot_name = self.plots_dir + job_name + '.jpg'
+        self._initCSV(conf.job_name)
+        self.plot_name = self.plots_dir + conf.job_name + '.jpg'
 
         # Start stats
         self.start_time = time.time()
@@ -117,7 +125,7 @@ class Statistics(object):
         self.q_values.extend(q_values)
 
     # Handle ending of epoch by writing to tensorbaord and csv file
-    def write(self, epoch, phase):
+    def write(self, epoch, phase, tensorboard=False):
         current_time = time.time()
         total_time = current_time - self.start_time
         epoch_time = current_time - self.epoch_start_time
@@ -127,10 +135,10 @@ class Statistics(object):
             self.num_eps = 1
             self.avg_reward = self.eps_reward
 
-        if self.validation_states is None and self.agent.exp_replay.size > self.agent.batch_size:
+        if tensorboard and self.validation_states is None and self.agent.exp_replay.size > self.agent.batch_size:
             self.validation_states, _, _, _, _ = self.agent.exp_replay.getBatch()
 
-        if self.validation_states is not None:
+        if tensorboard and self.validation_states is not None:
             state_shape = [-1] + self.env.state_shape
             q_values = self.agent.sess.run(self.agent.q_model.q_values,
                     feed_dict={self.agent.q_model.batch_input : self.validation_states.reshape(state_shape)})
@@ -139,46 +147,49 @@ class Statistics(object):
         else:
             mean_q_value = 0
 
-        self.csv_writer.writerow((
-            epoch,
-            phase,
-            self.num_steps,
-            self.num_eps,
-            self.avg_reward,
-            self.min_reward,
-            self.max_reward,
-            self.epsilon,
-            self.agent.exp_replay.size,
-            mean_q_value,
-            self.avg_loss,
-            self.agent.train_iterations,
-            total_time,
-            epoch_time,
-            steps_per_second))
-        self.csv_file.flush()
+        if tensorboard:
+            self.csv_writer.writerow((
+                epoch,
+                phase,
+                self.num_steps,
+                self.num_eps,
+                self.avg_reward,
+                self.min_reward,
+                self.max_reward,
+                self.epsilon,
+                self.agent.exp_replay.size,
+                mean_q_value,
+                self.avg_loss,
+                self.agent.train_iterations,
+                total_time,
+                epoch_time,
+                steps_per_second))
+            self.csv_file.flush()
 
-        # Write data to tensorflow
-        self.injectSummary({
-            'average/q_value' : np.mean(self.q_values),
-            'average/loss' : self.avg_loss,
-            'average/reward' : self.avg_reward,
-            'episode/max_reward' : self.max_reward,
-            'episode/min_reward' : self.min_reward,
-            'episode/num_episodes' : self.num_eps,
-            'episode/actions' : self.actions,
-            'episode/rewards' : self.eps_rewards,
-            'training/learning_rate' : self.agent.q_model.lr_op.eval(session=self.sess),
-            'training/epsilon' : self.epsilon
-        }, epoch)
+            # Write data to tensorflow
+            self.injectSummary({
+                'average/q_value' : np.mean(self.q_values),
+                'average/loss' : self.avg_loss,
+                'average/reward' : self.avg_reward,
+                'episode/max_reward' : self.max_reward,
+                'episode/min_reward' : self.min_reward,
+                'episode/num_episodes' : self.num_eps,
+                'episode/actions' : self.actions,
+                'episode/rewards' : self.eps_rewards,
+                'training/learning_rate' : self.agent.q_model.lr_op.eval(session=self.sess),
+                'training/epsilon' : self.epsilon
+            }, epoch)
 
         # Save episode rewards for plotting later
         if phase == 'train':
             self.train_epoch_rewards.append(self.avg_reward)
+            self.train_eps_rewards.extend(self.eps_rewards)
         elif phase == 'test':
             self.test_epoch_rewards.append(self.avg_reward)
+            self.test_eps_rewards.extend(self.eps_rewards)
 
         # Save model if it is good enough
-        if self.max_avg_eps_reward * 0.9 <= self.avg_reward:
+        if tensorboard and self.max_avg_eps_reward * 0.9 <= self.avg_reward:
             self.saveModel(epoch)
             self.max_avg_eps_reward = max(self.max_avg_eps_reward, self.avg_reward)
 
@@ -188,10 +199,30 @@ class Statistics(object):
 
     # Update plot with current data
     def plot(self):
-        plt.plot(self.train_epoch_rewards)
-        plt.plot(self.test_epoch_rewards)
-        plt.legend(['Train', 'Test'], loc='upper left')
-        plt.savefig(self.plot_name)
+        gs = gridspec.GridSpec(2,1)
+        gs.update(hspace=0.75)
+
+        fig = plt.figure()
+        fig.suptitle(self.env.name, fontsize=14, fontweight='bold')
+        fig.subplots_adjust(top=0.85)
+
+        # Avg. reward per epoch
+        epoch_ax = fig.add_subplot(gs[0])
+        epoch_ax.set_title('Avg. Reward per Epoch', fontweight='bold')
+        epoch_ax.set_xlabel('Epoch ({} Steps)'.format(self.train_steps))
+        epoch_ax.set_ylabel('Reward')
+        l1 = epoch_ax.plot(self.train_epoch_rewards, color='b', label='Train')
+        l2 = epoch_ax.plot(self.test_epoch_rewards, color='r', label='Test')
+
+        # Reward per episode
+        eps_ax = fig.add_subplot(gs[1])
+        eps_ax.set_title('Reward per Episode', fontweight='bold')
+        eps_ax.set_xlabel('Episode')
+        eps_ax.set_ylabel('Reward')
+        eps_ax.plot(self.train_eps_rewards, color='b', label='Train')
+        eps_ax.plot(self.test_eps_rewards, color='r', label='Test')
+
+        fig.savefig(self.plot_name)
 
     # Inject summary data into tensorboard
     def injectSummary(self, tag_dict, t):
@@ -201,13 +232,18 @@ class Statistics(object):
         for summary_str in summary_str_lists:
             self.writer.add_summary(summary_str, t)
 
-    # Log statistics during run
+    # og statistics during run
     def log(self):
-        print 'Num Episodes: %d | Epsilon: %f | Avg Rewards: %f | Min Reward %d | Max Reward %d' % \
+        print 'Num Episodes: %d | Epsilon: %f | Avg Rewards: %f | Min Reward %f | Max Reward %f' % \
                 (self.num_eps, self.epsilon, self.avg_reward, self.min_reward, self.max_reward)
 
     # Close the csv file
     def close(self):
+        filepath = '{}{}/{}.pkl'.format(constants.STATS_PATH, self.env.name, self.job_name)
+        with open(filepath, 'wb') as fd:
+            pickled_data = {'train_eps' : self.train_eps_rewards, 'test_eps' : self.test_eps_rewards,
+                            'train_epoch' : self.train_epoch_rewards, 'test_epoch' : self.test_epoch_rewards}
+            pickle.dump(pickled_data, fd)
         self.csv_file.close()
 
     # Save the model to the model directory

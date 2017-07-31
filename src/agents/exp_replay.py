@@ -10,8 +10,8 @@ class ExpReplay(object):
     self.memory_size = capacity
 
     self.actions = np.empty(self.memory_size, dtype=np.uint8)
-    self.rewards = np.empty(self.memory_size, dtype=np.int8)
-    self.observations = np.empty([self.memory_size] + observation_dims, dtype=np.uint8)
+    self.rewards = np.empty(self.memory_size, dtype=np.float32)
+    self.observations = np.empty([self.memory_size] + observation_dims, dtype=np.float32)
     self.terminals = np.empty(self.memory_size, dtype=np.bool)
 
     # pre-allocate prestates and poststates for minibatch

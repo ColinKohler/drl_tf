@@ -30,7 +30,7 @@ def train(args):
         # Init environment and agent
         env = Environment(args.env_name)
         agent = DQN_Agent(sess, env, args)
-        stats = Statistics(sess, agent, env, args.job_name)
+        stats = Statistics(sess, agent, env, args)
         if args.load_model: stats.loadModel()
         sess.graph.finalize()
 
@@ -45,11 +45,11 @@ def train(args):
                 if args.train_steps > 0:
                     print 'Training for %d steps' % args.train_steps
                     agent.train(args.train_steps)
-                    stats.write(epoch+1, 'train')
+                    stats.write(epoch+1, 'train', tensorboard=True)
 
                 if args.test_steps > 0:
                     print 'Testing for %d steps' % args.test_steps
-                    agent.test(args.test_steps)
+                    agent.test(args.test_steps, render=True)
                     stats.write(epoch+1, 'test')
 
             agent.stopEnqueueThreads()

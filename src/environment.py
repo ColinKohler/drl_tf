@@ -19,7 +19,7 @@ class Environment(object):
         else:
             self.exp_length = 1
             self.frame_size = None
-            #self.state_shape = list(self.gym_env.observation_space.shape)
+            self.state_shape = list(self.gym_env.observation_space.shape)
 
         # Set discrete or continuous state
         self.num_actions = self.gym_env.action_space.n

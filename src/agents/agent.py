@@ -1,8 +1,7 @@
 import numpy as np
 
 class Agent(object):
-    def __init__(self, sess, env, conf):
-        self.sess = sess
+    def __init__(self, env, conf):
         self.env = env
         self.lr = conf.lr
         self.discount = conf.discount
@@ -35,12 +34,13 @@ class Agent(object):
 
             while not self.env.done:
                 if render: self.env.render()
+                state = self.env.getState(getDiscreteState=self.discrete)
 
                 # Take action greedly with eps proability
                 if np.random.rand(1) < self.test_eps:
                     action = np.random.randint(self.env.num_actions)
                 else:
-                    action = self._selectAction(self.env.state)
+                    action = self._selectAction(state)
                 self.env.takeAction(action)
 
                 reward_sum += self.env.reward

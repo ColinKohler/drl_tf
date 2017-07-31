@@ -7,8 +7,9 @@ from agent import Agent
 import constants
 
 class Q_Agent(Agent):
-    def __init__(self, env, lr, discount, s_eps, e_eps, eps_decay_steps, test_eps):
-        super(Q_Agent, self).__init__(env, lr, discount, s_eps, e_eps, eps_decay_steps, test_eps)
+    def __init__(self, env, conf):
+        super(Q_Agent, self).__init__(env, conf)
+        self.discrete = True
 
         num_obs_space = reduce(lambda x,y : x*y, self.env.num_discrete_states)
         self.q_table = np.zeros([num_obs_space, self.env.num_actions])
@@ -28,7 +29,7 @@ class Q_Agent(Agent):
                 if np.random.rand(1) < eps:
                     action = np.random.randint(self.env.num_actions)
                 else:
-                    action = np.argmax(self.q_table[d_state,:])
+                    action = self._selectAction(d_state)
                 self.env.takeAction(action)
                 self._updateQTable(d_state, action)
                 self._decayEps()
@@ -48,3 +49,14 @@ class Q_Agent(Agent):
     def _updateQTable(self, s, a):
         new_state = self.env.getState(getDiscreteState=True)
         self.q_table[s, a] += self.lr * (self.env.reward + self.discount * np.max(self.q_table[new_state,:]) - self.q_table[s,a])
+
+    def _selectAction(self, state):
+        return np.argmax(self.q_table[state,:])
+
+    def saveModel(self, name):
+        print '[*] Saving checkpoint...'
+        np.save('{}{}/{}.npy'.format(constants.TF_MODELS_PATH, self.env.name, name), self.q_table)
+
+    def loadModel(self, model):
+        self.q_table = np.load('{}{}/{}.npy'.format(constants.TF_MODELS_PATH, self.env.name, model))
+        print '[*] Load SUCCESS: {}{}/{}'.format(constants.TF_MODELS_PATH, self.env.name, model)

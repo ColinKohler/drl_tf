@@ -26,26 +26,35 @@ def getActionsForEnv(env_name):
 def train(args):
     # Init gym env
     env = Environment(args.env_name)
-    agent = Q_Agent(env, args.lr, args.discount, args.s_eps, args.e_eps, args.eps_decay_steps, args.t_eps)
-    stats = Statistics(agent, env, args.epochs, args.env_name, args.job_name)
+    agent = Q_Agent(env, args)
+    stats = Statistics(None, agent, env, args)
+    if args.load_model is not None: agent.loadModel(args.load_model)
 
     # Train agent
-    for epoch in range(args.epochs):
-        print 'Epoch #%d' % (epoch+1)
+    try:
+        for epoch in range(args.epochs):
+            print 'Epoch #%d' % (epoch+1)
 
-        print 'Training for %d steps' % args.train_steps
-        stats.reset()
-        agent.run(args.train_steps, train=True)
-        stats.write(epoch+1, 'train')
+            if args.train_steps > 0:
+                print 'Training for %d steps' % args.train_steps
+                agent.train(args.train_steps)
+                stats.write(epoch+1, 'train', tensorboard=False)
 
-        print 'Testing for %d steps' % args.test_steps
-        stats.reset()
-        agent.run(args.test_steps, train=False)
-        stats.write(epoch+1, 'test')
+            if args.test_steps > 0:
+                print 'Testing for %d steps' % args.test_steps
+                agent.test(args.test_steps, render=args.render)
+                stats.write(epoch+1, 'test', tensorboard=False)
 
-    agent.run(5000, train=False, render=True)
-    stats.close()
-    print 'Done'
+        agent.saveModel(args.job_name)
+        stats.plot()
+        stats.close()
+        agent.test(500, render=True)
+        print 'Done'
+    except KeyboardInterrupt:
+        agent.saveModel(args.job_name)
+        stats.plot()
+        stats.close()
+        print 'Caught keyboard interrupt, stopping run...'
 
 # Parse command line input to strucutre the RL problem
 def main():
@@ -62,6 +71,8 @@ def main():
                         help='Number of training steps per epoch.')
     envarg.add_argument('--test_steps', dest='test_steps', type=int, default=125000,
                         help='Number of testing steps per epoch.')
+    envarg.add_argument('--random_start', dest='random_start', default=False, action='store_true',
+                        help='Start each episode with a random state.')
     envarg.add_argument('--render', dest='render', action='store_true',
                         help='Should we render the environment during the specified mode')
 
@@ -74,6 +85,8 @@ def main():
                           help='Exploration rate used in testing.')
     agentarg.add_argument('--eps_decay_steps', dest='eps_decay_steps', type=float, default=1000000,
                           help='Number of steps to decay the exploration rate.')
+    agentarg.add_argument('--load_model', dest='load_model', default=None, type=str,
+                          help='Load the desired model')
 
     netarg = parser.add_argument_group('Model')
     netarg.add_argument('--lr', dest='lr', type=float, default=0.5,
