@@ -13,10 +13,12 @@ class DQN_Agent(Agent):
     def __init__(self, sess, env, conf):
         super(DQN_Agent, self).__init__(env, conf)
 
-        if conf.network_type == 'mlp':
+        if conf.network_type == 'MLP':
             self.net_config = constants.MLP
-        elif conf.network_type == 'cnn':
+        elif conf.network_type == 'CNN':
             self.net_config = constants.CNN
+        elif conf.net_config == 'MLP_RNN':
+            self.net_config = constants.MLP_RNN
         else:
             print 'Bad network config given! Exiting....'
             sys.exit(-1)
@@ -25,10 +27,7 @@ class DQN_Agent(Agent):
         self.discrete = False
         self.batch_size = conf.batch_size
         self.queue_size = self.batch_size * 4
-        if self.env.exp_length == 1:
-            self.exp_replay = ExpReplay(self.env.state_shape, self.batch_size, self.env.exp_length, capacity=conf.exp_replay_size)
-        else:
-            self.exp_replay = ExpReplay(self.env.state_shape[-2:], self.batch_size, self.env.exp_length, capacity=conf.exp_replay_size)
+        self.exp_replay = ExpReplay(self.env.state_shape[-1:], self.batch_size, self.env.history_length, capacity=conf.exp_replay_size)
         self.train_freq = conf.train_freq
         self.update_target_freq = conf.update_target_freq
         self.double_q = conf.double_q
@@ -76,7 +75,7 @@ class DQN_Agent(Agent):
             if self.env.done or step >= num_steps:
                 self.newGame()
 
-    # Run the agent for the desired number of steps either training or testing
+    # Run the agent for the desired number of steps either training
     def train(self, num_steps):
         step = 0; episode_num = 0
         eps = self.train_eps
@@ -86,13 +85,15 @@ class DQN_Agent(Agent):
 
             while not self.env.done:
                 # Take action greedly with eps proability
-                if np.random.rand(1) < eps:
-                    action = np.random.randint(self.env.num_actions)
-                else:
-                    action = self._selectAction(self.env.state)
+                #if np.random.rand() < eps:
+                #    action = np.random.randint(self.env.num_actions)
+                #else:
+                #    action = self._selectAction(self.env.state)
+                action = self._selectAction(self.env.state, eps)
+
                 self.env.takeAction(action)
                 self._storeExperience(action)
-                self._decayEps()
+                eps = self._decayEps()
 
                 reward_sum += self.env.reward
                 step += 1
@@ -112,14 +113,15 @@ class DQN_Agent(Agent):
                     self.callback.onStep(action, self.env.reward, self.env.done, eps)
 
     # Choose action greedly from network
-    def _selectAction(self, state):
+    def _selectAction(self, state, eps):
         state = state.reshape([1] + self.env.state_shape)
-        return self.sess.run(self.q_model.predict_op, feed_dict={self.q_model.batch_input : state})[0]
+       # return self.sess.run(self.q_model.predict_op, feed_dict={self.q_model.batch_input : state})[0]
+        return self.sess.run(self.q_model.predict_op, feed_dict={self.q_model.batch_input : state, self.q_model.keep_prob : (1-eps)+0.1})[0]
 
     # Store the transition into memory
     def _storeExperience(self, action):
         with self.replay_lock:
-            if self.env.exp_length == 1:
+            if self.env.history_length == 1:
                 self.exp_replay.storeExperience(self.env.state, action, self.env.reward, self.env.done)
             else:
                 self.exp_replay.storeExperience(self.env.state[-1], action, self.env.reward, self.env.done)
@@ -182,7 +184,7 @@ class DQN_Agent(Agent):
             feed_dict = {
                     self.q_model.queue_input : states,
                     self.q_model.queue_action : actions,
-                    self.q_model.queue_label : pred_q_values
+                    self.q_model.queue_label : pred_q_values,
             }
             try:
                 self.sess.run(self.q_model.enqueue_op, feed_dict=feed_dict)

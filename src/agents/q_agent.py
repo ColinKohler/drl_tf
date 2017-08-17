@@ -11,7 +11,7 @@ class Q_Agent(Agent):
         super(Q_Agent, self).__init__(env, conf)
         self.discrete = True
 
-        num_obs_space = reduce(lambda x,y : x*y, self.env.num_discrete_states)
+        num_obs_space = self.env.history_length * reduce(lambda x,y : x*y, self.env.num_discrete_states)
         self.q_table = np.zeros([num_obs_space, self.env.num_actions])
 
     # Run the agent for the desired number of steps either training or testing
@@ -32,13 +32,13 @@ class Q_Agent(Agent):
                     action = self._selectAction(d_state)
                 self.env.takeAction(action)
                 self._updateQTable(d_state, action)
-                self._decayEps()
+                eps = self._decayEps()
 
                 reward_sum += self.env.reward
                 step += 1
 
                 # Handle episode termination
-                if self.env.done or step >= num_steps:
+                if self.env.done:
                     episode_num += 1
                     self.callback.onStep(action, self.env.reward, True, eps)
                     break
@@ -50,7 +50,7 @@ class Q_Agent(Agent):
         new_state = self.env.getState(getDiscreteState=True)
         self.q_table[s, a] += self.lr * (self.env.reward + self.discount * np.max(self.q_table[new_state,:]) - self.q_table[s,a])
 
-    def _selectAction(self, state):
+    def _selectAction(self, state, a=0.0):
         return np.argmax(self.q_table[state,:])
 
     def saveModel(self, name):

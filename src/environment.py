@@ -5,21 +5,20 @@ import PIL
 import constants
 
 class Environment(object):
-    def __init__(self, env_name):
-        self.name = env_name
-        self.gym_env = gym.make(env_name)
+    def __init__(self, conf):
+        self.name = conf.env_name
+        self.gym_env = gym.make(self.name)
         self.max_eps_steps = self.gym_env.spec.tags.get('wrapper_config.TimeLimit.max_episode_steps')
+        self.history_length = conf.history_length
 
         # Set state variables for image/non-images
-        self.is_state_image = env_name in constants.ENVS_WITH_IMAGE_STATES
+        self.is_state_image = self.name in constants.ENVS_WITH_IMAGE_STATES
         if self.is_state_image:
-            self.exp_length = constants.FRAMES_PER_STATE
             self.frame_size = constants.FRAME_SIZE
-            self.state_shape = [self.exp_length, self.frame_size, self.frame_size]
+            self.state_shape = [self.history_length, self.frame_size, self.frame_size]
         else:
-            self.exp_length = 1
             self.frame_size = None
-            self.state_shape = list(self.gym_env.observation_space.shape)
+            self.state_shape = [self.history_length] + list(self.gym_env.observation_space.shape)
 
         # Set discrete or continuous state
         self.num_actions = self.gym_env.action_space.n
@@ -29,9 +28,6 @@ class Environment(object):
             self._discretizeContinuousSpace()
         else:
             self.is_env_state_discrete = True
-            #self.state_shape = self.gym_env.observation_space.n
-            #self.state_shape = [1]
-            self.state_shape = [self.gym_env.observation_space.n]
             self.num_discrete_states = [self.gym_env.observation_space.n]
             self.state = np.zeros(self.state_shape, dtype=np.uint8)
 
@@ -49,7 +45,7 @@ class Environment(object):
     # Get the discrete state from the current state
     def _getDiscreteState(self):
         discrete_state = 0
-        for i, (discrete_space, s) in enumerate(zip(self.discrete_spaces, self.state)):
+        for i, (discrete_space, s) in enumerate(zip(self.discrete_spaces, self.state.flatten())):
             discrete_state += 2**i * self._findNearest(discrete_space, s)
         return discrete_state
 
@@ -60,7 +56,7 @@ class Environment(object):
         new_state = self._processState(new_state)
         self.eps_steps += 1
 
-        if self.exp_length == 1:
+        if self.history_length == 1:
             np.copyto(self.state, new_state)
         else:
             self.state[:-1] = self.state[1:]
@@ -72,7 +68,7 @@ class Environment(object):
 
     # Reset the env state to a random starting state
     def newRandomGame(self):
-        num_steps = np.random.randint(self.exp_length, constants.NEW_GAME_MAX_RANDOM_STEPS)
+        num_steps = np.random.randint(self.history_length, constants.NEW_GAME_MAX_RANDOM_STEPS)
 
         self.newGame()
         for _ in range(num_steps):
@@ -120,6 +116,8 @@ class Environment(object):
             states = np.linspace(l, h, 50)
             self.discrete_spaces.append(states)
             self.num_discrete_states.append(len(states))
+
+        #self.discrete_spaces = [self.discrete_spaces for i in range(self.history_length)]
 
     # Find the index for the element in a array that is closest to the given value
     def _findNearest(self, array, value):

@@ -39,6 +39,7 @@ class Network(object):
             self.batch_input = tf.placeholder_with_default(batch_input_q, [None] + in_shape, 'input')
             self.batch_action = tf.placeholder_with_default(batch_action_q, [None], 'action')
             self.batch_label = tf.placeholder_with_default(batch_label_q, [None], 'label')
+            self.keep_prob = tf.placeholder_with_default(1.0, None)
 
             # Convert images from uint8 to float32
             if network_config['is_input_img']:
@@ -98,10 +99,14 @@ class Network(object):
             return self.fcLayer(prev_layer, config['num_neurons'], name, act=config['act'])
         elif config['type'] == 'fc' and config['last_layer']:
             return self.fcLayer(prev_layer, out_shape, name, act=tf.identity)
+        elif config['type'] == 'lstm':
+            return self.lstmLayer(prev_layer, config['num_neurons'], name)
         elif config['type'] == 'pool':
             return self.maxPoolLayer(self, prev_layer, config['filter'], config['stride'], name)
         elif config['type'] == 'flatten':
             return None, None, tf.contrib.layers.flatten(prev_layer)
+        elif config['type'] == 'dropout':
+            return None, None, tf.nn.dropout(prev_layer, self.keep_prob)
 
     ###############################################################################################
     #                              Layer Construction Utils                                       #
@@ -129,6 +134,15 @@ class Network(object):
             activations = act(preactivations, name='activation')
 
         return weights, biases, activations
+
+    # Create RNN LSTM Layer
+    def lstmLayer(self, inp, num_neurons, seq_length, name):
+        with tf.variable_scope(name) as scope:
+            cell = tf.contrib.rnn.BasicLSTMCell(num_neurons, forget_bias=1.0, state_is_tuple=True)
+            inp = tf.reshape(inp, [-1, self.batch_size, inp.shape[-1]])
+            activations, activation_states = tf.nn.dynamic_rnn(cell, inp, seq_length,
+                                                               time_major=False, dtype=tf.float32)
+            activations = tf.reshape()
 
     # Create max pooling layer
     def maxPoolLayer(self, inp, filter_shape, stride_shape, name, padding='SAME'):

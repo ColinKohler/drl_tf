@@ -17,19 +17,40 @@ NEW_GAME_MAX_RANDOM_STEPS = 30
 # Network layer configs
 MLP = {'is_input_img' : False,
        'layers' : [
+           {'name' : 'flat',
+             'type' : 'flatten'},
            {'name' : 'fc_1',
             'type' : 'fc',
-            'num_neurons' : 64,
-            'act' : tf.sigmoid,
+            'num_neurons' : 16,
+            'act' : tf.tanh,
             'last_layer' : False},
-           {'name' : 'fc_2',
-            'type' : 'fc',
-            'num_neurons' : 8,
-            'act' : tf.sigmoid,
-            'last_layer' : False},
+           #{'name' : 'fc_2',
+           # 'type' : 'fc',
+           # 'num_neurons' : 8,
+           # 'act' : tf.tanh,
+           # 'last_layer' : False},
+           {'name' : 'dropout_2',
+            'type' : 'dropout'},
            {'name' : 'output',
             'type' : 'fc',
             'last_layer' : True}]}
+
+MLP_RNN = {'is_input_img' : False,
+           'layers' : [
+                {'name' : 'flat',
+                 'type' : 'flatten'},
+                {'name' : 'lstm_1',
+                 'type' : 'lstm',
+                 'num_neurons' : 32},
+                {'name' : 'fc_1',
+                 'type' : 'fc',
+                 'num_neurons' : 8,
+                 'last_layer' : False},
+                {'name' : 'dropout_2',
+                 'type' : 'dropout'},
+                {'name' : 'output',
+                 'type' : 'fc',
+                 'last_layer' : True}]}
 
 CNN = {'is_input_img' : True,
         'layers' : [

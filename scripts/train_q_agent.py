@@ -25,7 +25,7 @@ def getActionsForEnv(env_name):
 
 def train(args):
     # Init gym env
-    env = Environment(args.env_name)
+    env = Environment(args)
     agent = Q_Agent(env, args)
     stats = Statistics(None, agent, env, args)
     if args.load_model is not None: agent.loadModel(args.load_model)
@@ -48,12 +48,13 @@ def train(args):
         agent.saveModel(args.job_name)
         stats.plot()
         stats.close()
-        agent.test(500, render=True)
+        agent.test(1000, render=True)
         print 'Done'
     except KeyboardInterrupt:
         agent.saveModel(args.job_name)
         stats.plot()
         stats.close()
+        agent.test(1000, render=True)
         print 'Caught keyboard interrupt, stopping run...'
 
 # Parse command line input to strucutre the RL problem
@@ -73,6 +74,8 @@ def main():
                         help='Number of testing steps per epoch.')
     envarg.add_argument('--random_start', dest='random_start', default=False, action='store_true',
                         help='Start each episode with a random state.')
+    envarg.add_argument('--history_length', dest='history_length', type=int, default=1,
+                        help='The length of history of observations to use as state input')
     envarg.add_argument('--render', dest='render', action='store_true',
                         help='Should we render the environment during the specified mode')
 

@@ -20,6 +20,7 @@ class Statistics(object):
 
         self.job_name = conf.job_name
         self.train_steps = conf.train_steps
+        self.e_eps = conf.e_eps
 
         self.max_avg_eps_reward = -sys.maxint - 1
         self.train_epoch_rewards = list()
@@ -189,8 +190,9 @@ class Statistics(object):
             self.test_eps_rewards.extend(self.eps_rewards)
 
         # Save model if it is good enough
-        if tensorboard and self.max_avg_eps_reward * 0.9 <= self.avg_reward:
+        if tensorboard and self.epsilon == self.e_eps and self.max_avg_eps_reward * 0.9 <= self.avg_reward:
             self.saveModel(epoch)
+            self.agent.test(1, render=True)
             self.max_avg_eps_reward = max(self.max_avg_eps_reward, self.avg_reward)
 
         # Output to cmd line and reset stats

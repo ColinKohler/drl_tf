@@ -15,8 +15,8 @@ class ExpReplay(object):
     self.terminals = np.empty(self.memory_size, dtype=np.bool)
 
     # pre-allocate prestates and poststates for minibatch
-    self.prestates = np.empty([self.batch_size] + observation_dims, dtype = np.float16)
-    self.poststates = np.empty([self.batch_size] + observation_dims, dtype = np.float16)
+    self.prestates = np.empty([self.batch_size, self.history_length] + observation_dims, dtype = np.float16)
+    self.poststates = np.empty([self.batch_size, self.history_length] + observation_dims, dtype = np.float16)
 
     self.size = 0
     self.current = 0
