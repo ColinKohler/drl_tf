@@ -10,6 +10,7 @@ class Q_Agent(Agent):
     def __init__(self, env, conf):
         super(Q_Agent, self).__init__(env, conf)
         self.discrete = True
+        self.lstm = False
 
         num_obs_space = self.env.history_length * reduce(lambda x,y : x*y, self.env.num_discrete_states)
         self.q_table = np.zeros([num_obs_space, self.env.num_actions])

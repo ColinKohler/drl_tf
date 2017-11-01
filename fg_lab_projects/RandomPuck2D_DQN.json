@@ -1,7 +1,11 @@
 {
+    "job_name" : {
+        "type" : "string",
+        "default" : ""
+    },
     "epochs" : {
         "type" : "int",
-        "default" : "100"
+        "default" : "200"
     },
     "train_steps" : {
         "type" : "int",
@@ -16,10 +20,6 @@
         "default" : "100000"
     },
     "history_length" : {
-        "type" : "int",
-        "default" : "1"
-    },
-    "unroll" : {
         "type" : "int",
         "default" : "1"
     },
@@ -43,7 +43,7 @@
     },
     "eps_decay_steps" : {
         "type" : "int",
-        "default" : "100000"
+        "default" : "250000"
     },
     "update_target_freq" : {
         "type" : "int",
@@ -56,14 +56,14 @@
     "network_type" : {
         "type" : "enum",
         "default" : "MLP",
-        "values" : ["MLP", "CNN", "RNN_MLP"]
+        "values" : ["MLP", "CNN"]
     },
     "load_model" : {
         "type" : "bool"
     },
     "lr" : {
         "type" : "float",
-        "default" : "0.00025"
+        "default" : "0.01"
     },
     "lr_minimum" : {
         "type" : "float",
@@ -82,8 +82,7 @@
         "default" : "0.99"
     },
     "batch" : {
-        "type" : "enum",
-        "default" : "32",
-        "values" : ["8", "16", "32", "64", "128", "256"]
+        "type" : "int",
+        "default" : "32"
     }
 }

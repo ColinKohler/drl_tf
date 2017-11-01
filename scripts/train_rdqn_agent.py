@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import argparse
 import tensorflow as tf
 
-from agents.dqn_agent import DQN_Agent
+from agents.rdqn_agent import RDQN_Agent
 from environment import Environment
 import constants
 from statistics import Statistics
@@ -29,7 +29,7 @@ def train(args):
     with tf.Session() as sess:
         # Init environment and agent
         env = Environment(args)
-        agent = DQN_Agent(sess, env, args)
+        agent = RDQN_Agent(sess, env, args)
         stats = Statistics(sess, agent, env, args)
         if args.load_model: stats.loadModel()
         sess.graph.finalize()
@@ -106,8 +106,8 @@ def main():
                           help='Train the DQN every nth step.')
 
     netarg = parser.add_argument_group('DDQN Network')
-    netarg.add_argument('--network_config', dest='network_config', type=str, default='MLP',
-                        help='The type of network [MLP, CNN, R_MLP]')
+    netarg.add_argument('--network_config', dest='network_config', type=str, default='R_MLP',
+                        help='The type of network [R_MLP]')
     netarg.add_argument('--lr', dest='lr', type=float, default=0.00025,
                         help='The learning rate')
     netarg.add_argument('--lr_minimum', dest='lr_minimum', type=float, default=0.00025,
@@ -120,6 +120,8 @@ def main():
                         help='The future reward discount')
     netarg.add_argument('--batch', dest='batch_size', type=int, default=32,
                         help='The size of the minibatch')
+    netarg.add_argument('--unroll', dest='unroll', type=int, default=1,
+                        help='The number of unroll steps to train LSTM on')
 
     args, unknown = parser.parse_known_args()
     train(args)

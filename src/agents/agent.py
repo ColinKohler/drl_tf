@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 
 class Agent(object):
     def __init__(self, env, conf):
@@ -31,6 +32,9 @@ class Agent(object):
         for i in range(num_eps):
             reward_sum = 0.0;
             self.newGame()
+            if self.lstm:
+                self.lstm_state = tf.contrib.rnn.LSTMStateTuple(np.zeros((1, self.num_lstm_units), dtype=np.float32),
+                                                                np.zeros((1, self.num_lstm_units), dtype=np.float32))
 
             while not self.env.done:
                 if render: self.env.render()

@@ -101,8 +101,8 @@ def main():
                           help='Train the DQN every nth step.')
 
     netarg = parser.add_argument_group('DDQN Network')
-    netarg.add_argument('--network_type', dest='network_type', type=str, default='mlp',
-                        help='The type of network [mlp, nature, nips]')
+    netarg.add_argument('--network_config', dest='network_config', type=str, default='MLP',
+                        help='The type of network [MLP, CNN, R_MLP]')
     netarg.add_argument('--lr', dest='lr', type=float, default=0.00025,
                         help='The learning rate')
     netarg.add_argument('--lr_minimum', dest='lr_minimum', type=float, default=0.00025,
@@ -115,6 +115,8 @@ def main():
                         help='The future reward discount')
     netarg.add_argument('--batch', dest='batch_size', type=int, default=32,
                         help='The size of the minibatch')
+    netarg.add_argument('--unroll', dest='unroll', type=int, default=1,
+                        help='The number of unroll steps to train LSTM on')
 
     args, unknown = parser.parse_known_args()
     test(args)

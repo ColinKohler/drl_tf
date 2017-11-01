@@ -1,0 +1,54 @@
+{
+    "job_name" : {
+        "type" : "string",
+        "default" : ""
+    },
+    "epochs" : {
+        "type" : "int",
+        "default" : "100"
+    },
+    "train_steps" : {
+        "type" : "int",
+        "default" : "10000"
+    },
+    "test_eps" : {
+        "type" : "int",
+        "default" : "0"
+    },
+    "test_eps" : {
+        "type" : "int",
+        "default" : "0"
+    },
+    "history_length" : {
+        "type" : "int",
+        "default" : "1"
+    },
+    "random_start" : {
+        "type" : "bool",
+        "default" : "false"
+    },
+    "s_eps" : {
+        "type" : "float",
+        "default" : "1.0"
+    },
+    "e_eps" : {
+        "type" : "float",
+        "default" : "0.0"
+    },
+    "eps_decay_steps" : {
+        "type" : "int",
+        "default" : "500000"
+    },
+    "load_model" : {
+        "type" : "string",
+        "default" : " "
+    },
+    "lr" : {
+        "type" : "float",
+        "default" : "0.1"
+    },
+    "discount" : {
+        "type" : "float",
+        "default" : "0.99"
+    }
+}

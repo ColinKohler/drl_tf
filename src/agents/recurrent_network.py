@@ -2,9 +2,9 @@ import tensorflow as tf
 import numpy as np
 import constants
 
-class Network(object):
+class RecurrentNetwork(object):
     def __init__(self, name, in_shape, out_shape, network_config,
-                       lr, lr_min, lr_decay_step, lr_decay, batch_size, queue_size):
+                       lr, lr_min, lr_decay_step, lr_decay, batch_size, queue_size, unroll):
         self.name = name
         self.lr = lr
         self.lr_minimum = lr_min
@@ -12,6 +12,7 @@ class Network(object):
         self.lr_decay = lr_decay
         self.batch_size = batch_size
         self.queue_size = queue_size
+        self.unroll = unroll
 
         self._createNetwork(in_shape, out_shape, network_config)
 
@@ -40,6 +41,7 @@ class Network(object):
             self.batch_action = tf.placeholder_with_default(batch_action_q, [None], 'action')
             self.batch_label = tf.placeholder_with_default(batch_label_q, [None], 'label')
             self.keep_prob = tf.placeholder_with_default(1.0, None)
+            self.seq_length = tf.placeholder_with_default(self.unroll, None)
 
             # Convert images from uint8 to float32
             if network_config['is_input_img']:
@@ -83,14 +85,13 @@ class Network(object):
                         self.lr_decay,
                         staircase=True))
 
+                #self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss)
                 optimizer = tf.train.AdamOptimizer(self.lr_op)
                 #optimizer = tf.train.RMSPropOptimizer(self.lr_op, momentum=0.95, epsilon=0.01)
                 self.train_op = optimizer.minimize(self.loss, global_step=self.global_step)
 
             with tf.name_scope('predict'):
                 self.predict_op = tf.argmax(self.q_values, 1)
-
-            self.q_dist = tf.nn.softmax(self.q_values/self.keep_prob)
 
     # Create layer detailed in config dict
     def createLayer(self, prev_layer, config, out_shape):
@@ -101,6 +102,8 @@ class Network(object):
             return self.fcLayer(prev_layer, config['num_neurons'], name, act=config['act'])
         elif config['type'] == 'fc' and config['last_layer']:
             return self.fcLayer(prev_layer, out_shape, name, act=tf.identity)
+        elif config['type'] == 'lstm':
+            return self.lstmLayer(prev_layer, config['num_neurons'], name, act=config['act'])
         elif config['type'] == 'pool':
             return self.maxPoolLayer(self, prev_layer, config['filter'], config['stride'], name)
         elif config['type'] == 'flatten':
@@ -134,6 +137,21 @@ class Network(object):
             activations = act(preactivations, name='activation')
 
         return weights, biases, activations
+
+    # Create RNN LSTM Layer
+    def lstmLayer(self, inp, num_neurons, name, act=tf.nn.relu):
+        with tf.variable_scope(name) as scope:
+            cell = tf.contrib.rnn.BasicLSTMCell(num_neurons, forget_bias=1.0, state_is_tuple=True, activation=act)
+            self.init_state = cell.zero_state(tf.shape(self.batch_input)[0], tf.float32)
+            activations, self.lstm_state = tf.nn.dynamic_rnn(cell,
+                                                             inp,
+                                                             sequence_length=self.seq_length,
+                                                             initial_state=self.init_state,
+                                                             dtype=tf.float32)
+            activations = activations[:, self.seq_length-1]
+            #activations = tf.reshape(activations, [-1, num_neurons])
+
+        return None, None, activations
 
     # Create max pooling layer
     def maxPoolLayer(self, inp, filter_shape, stride_shape, name, padding='SAME'):

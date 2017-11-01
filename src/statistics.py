@@ -140,7 +140,7 @@ class Statistics(object):
             self.validation_states, _, _, _, _ = self.agent.exp_replay.getBatch()
 
         if tensorboard and self.validation_states is not None:
-            state_shape = [-1] + self.env.state_shape
+            state_shape = [-1, self.agent.unroll, self.env.getStateShape()[-1]]
             q_values = self.agent.sess.run(self.agent.q_model.q_values,
                     feed_dict={self.agent.q_model.batch_input : self.validation_states.reshape(state_shape)})
             max_q_values = np.max(q_values, axis=1)
@@ -189,14 +189,16 @@ class Statistics(object):
             self.test_epoch_rewards.append(self.avg_reward)
             self.test_eps_rewards.extend(self.eps_rewards)
 
+        # Print log for current epoch
+        self.log()
+
         # Save model if it is good enough
-        if tensorboard and self.epsilon == self.e_eps and self.max_avg_eps_reward * 0.9 <= self.avg_reward:
+        if tensorboard and self.epsilon == self.e_eps and self.max_avg_eps_reward <= self.avg_reward:
             self.saveModel(epoch)
             self.agent.test(1, render=True)
             self.max_avg_eps_reward = max(self.max_avg_eps_reward, self.avg_reward)
 
-        # Output to cmd line and reset stats
-        self.log()
+        # Reset stats for next epoch
         self.reset()
 
     # Update plot with current data

@@ -35,26 +35,13 @@ def train(args):
         for epoch in range(args.epochs):
             print 'Epoch #%d' % (epoch+1)
 
-            if args.train_steps > 0:
-                print 'Training for %d steps' % args.train_steps
-                agent.train(args.train_steps)
-                stats.write(epoch+1, 'train', tensorboard=False)
-
             if args.test_eps > 0:
                 print 'Testing for %d steps' % args.test_eps
                 agent.test(args.test_eps, render=args.render)
-                stats.write(epoch+1, 'test', tensorboard=False)
+                stats.log()
 
-        agent.saveModel(args.job_name)
-        stats.plot()
-        stats.close()
-        agent.test(10, render=True)
         print 'Done'
     except KeyboardInterrupt:
-        agent.saveModel(args.job_name)
-        stats.plot()
-        stats.close()
-        agent.test(10, render=True)
         print 'Caught keyboard interrupt, stopping run...'
 
 # Parse command line input to strucutre the RL problem
@@ -68,8 +55,7 @@ def main():
                         help='The name of the job for this training run')
     envarg.add_argument('--epochs', dest='epochs', type=int, default=200,
                         help='How many epochs to run')
-    envarg.add_argument('--train_steps', dest='train_steps', type=int, default=10000,
-                        help='Number of training steps per epoch.')
+    envarg.add_argument('--train_steps', dest='train_steps', type=int, default=0)
     envarg.add_argument('--test_eps', dest='test_eps', type=int, default=0,
                         help='Number of testing steps per epoch.')
     envarg.add_argument('--random_start', dest='random_start', default=False, action='store_true',
@@ -80,19 +66,19 @@ def main():
                         help='Should we render the environment during the specified mode')
 
     agentarg = parser.add_argument_group('Agent')
-    agentarg.add_argument('--s_eps', dest='s_eps', type=float, default=1.0,
+    agentarg.add_argument('--s_eps', dest='s_eps', type=float, default=0.0,
                           help='The starting epsilon value')
-    agentarg.add_argument('--e_eps', dest='e_eps', type=float, default=0.1,
+    agentarg.add_argument('--e_eps', dest='e_eps', type=float, default=0.0,
                           help='The ending epsilon value')
     agentarg.add_argument('--t_eps', dest='t_eps', type=float, default=0.0,
                           help='Exploration rate used in testing.')
-    agentarg.add_argument('--eps_decay_steps', dest='eps_decay_steps', type=float, default=1000000,
+    agentarg.add_argument('--eps_decay_steps', dest='eps_decay_steps', type=float, default=1,
                           help='Number of steps to decay the exploration rate.')
     agentarg.add_argument('--load_model', dest='load_model', default=None, type=str,
                           help='Load the desired model')
 
     netarg = parser.add_argument_group('Model')
-    netarg.add_argument('--lr', dest='lr', type=float, default=0.5,
+    netarg.add_argument('--lr', dest='lr', type=float, default=0.1,
                         help='The learning rate')
     netarg.add_argument('--discount', dest='discount', type=float, default=0.99,
                         help='The future reward discount')

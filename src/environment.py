@@ -38,16 +38,25 @@ class Environment(object):
     # Get the current state
     def getState(self, getDiscreteState=False):
         if getDiscreteState:
-            return self._getDiscreteState()
+            return np.array(self._getDiscreteState())
         else:
             return self.state
 
+    # Get the state shape
+    def getStateShape(self, getDiscreteState=False):
+        if getDiscreteState:
+            return [self.history_length, 1]
+        else:
+            return self.state_shape
+
     # Get the discrete state from the current state
     def _getDiscreteState(self):
-        discrete_state = 0
-        for i, (discrete_space, s) in enumerate(zip(self.discrete_spaces, self.state.flatten())):
-            discrete_state += 2**i * self._findNearest(discrete_space, s)
-        return discrete_state
+        #discrete_state = 0
+        discrete_state = list()
+        for i, (discrete_bin, s) in enumerate(zip(self.discrete_bins, self.state.flatten())):
+            #discrete_state += 2**i * self._findNearest(discrete_space, s)
+            discrete_state.append(self._findNearest(discrete_bin, s))
+        return np.array(discrete_state)
 
     # Take action in the env
     def takeAction(self, action):
@@ -110,16 +119,17 @@ class Environment(object):
         low = self.gym_env.observation_space.low
         high = self.gym_env.observation_space.high
 
-        self.discrete_spaces = list()
+        self.discrete_bins = list()
         self.num_discrete_states = list()
         for l, h in zip(low, high):
-            states = np.linspace(l, h, 50)
-            self.discrete_spaces.append(states)
+            states = np.linspace(l, h, 100)
+            self.discrete_bins.append(states)
             self.num_discrete_states.append(len(states))
 
-        #self.discrete_spaces = [self.discrete_spaces for i in range(self.history_length)]
+        self.discrete_bins = np.array(self.discrete_bins)
+        #self.discrete_bins = [self.discrete_bins for i in range(self.history_length)]
 
     # Find the index for the element in a array that is closest to the given value
     def _findNearest(self, array, value):
-        idx, val = min(enumerate(array), key=lambda x: abs(x[1]-value))
+        idx = np.digitize(value, array)
         return idx
