@@ -5,7 +5,6 @@ import threading
 import time
 
 from agent import Agent
-from exp_replay import ExpReplay
 from recurrent_network import RecurrentNetwork
 import constants
 

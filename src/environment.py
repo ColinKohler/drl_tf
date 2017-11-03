@@ -12,9 +12,9 @@ class Environment(object):
         self.history_length = conf.history_length
 
         # Set state variables for image/non-images
-        self.is_state_image = self.name in constants.ENVS_WITH_IMAGE_STATES
+        self.is_state_image = conf.is_image_state
         if self.is_state_image:
-            self.frame_size = constants.FRAME_SIZE
+            self.frame_size = conf.FRAME_SIZE
             self.state_shape = [self.history_length, self.frame_size, self.frame_size]
         else:
             self.frame_size = None
@@ -30,6 +30,9 @@ class Environment(object):
             self.is_env_state_discrete = True
             self.num_discrete_states = [self.gym_env.observation_space.n]
             self.state = np.zeros(self.state_shape, dtype=np.uint8)
+
+        self.last_action = None
+        self.prev_state = np.empty_like(self.state)
 
     # Render the gym env
     def render(self):
@@ -61,10 +64,11 @@ class Environment(object):
     # Take action in the env
     def takeAction(self, action):
         new_state, self.reward, self.done, self.info = self.gym_env.step(action)
-        self.reward = max(-1.0, min(1.0, self.reward))
         new_state = self._processState(new_state)
         self.eps_steps += 1
 
+        self.last_action = action
+        np.copyto(self.prev_state, self.state)
         if self.history_length == 1:
             np.copyto(self.state, new_state)
         else:
@@ -96,6 +100,9 @@ class Environment(object):
 
         new_state = self._processState(self.gym_env.reset())
         self.state[:] = new_state
+
+        self.last_action = None
+        self.prev_state[:] = 0
 
     # Preprocess state if state is image
     def _processState(self, state):
